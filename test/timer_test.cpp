@@ -17,20 +17,17 @@ TEST(Timer, General)
   for (int i = 0; i < 21; i++) {
     jobs.push_back(new MyJob(i));
   }
-
   auto now = std::chrono::steady_clock::now();
-
   for (int i = 0; i < 21; i++) {
-    mgr.addTimer(now + std::chrono::milliseconds(i * 100), jobs[i]);
+    mgr.addTimer(now + std::chrono::milliseconds(i * 10), jobs[i]);
   }
-
-  std::this_thread::sleep_for(1s);
+  std::this_thread::sleep_for(100ms);
   auto okJobs = mgr._debugProcessTimers();
-  ASSERT_EQ(okJobs.size(), 11); // (0 ~ 10) * 100ms
+  ASSERT_EQ(okJobs.size(), 11); // (0 ~ 10) * 10ms
   for (int i = 11; i < jobs.size() - 1; i++) {
     mgr.deleteTimer(jobs[i]->id);
   }
-  std::this_thread::sleep_for(1s);
+  std::this_thread::sleep_for(100ms);
   okJobs = mgr._debugProcessTimers();
   ASSERT_EQ(okJobs.size(), 1);
   ASSERT_EQ(okJobs[0]->id, 20);
@@ -47,15 +44,15 @@ TEST(Timer, AddAndDelete)
   auto job3 = new MyJob(300);
 
   auto now = std::chrono::steady_clock::now();
-  mgr.addTimer(now + 1s, job1);
-  mgr.addTimer(now + 2s, job2);
-  mgr.addTimer(now + 3s, job3);
+  mgr.addTimer(now + 100ms, job1);
+  mgr.addTimer(now + 200ms, job2);
+  mgr.addTimer(now + 300ms, job3);
   mgr.deleteTimer(job2->id);
-  std::this_thread::sleep_for(1s);
+  std::this_thread::sleep_for(100ms);
   auto okJobs = mgr._debugProcessTimers();
   ASSERT_EQ(okJobs.size(), 1);
   ASSERT_EQ(okJobs[0]->id, job1->id);
-  std::this_thread::sleep_for(2s);
+  std::this_thread::sleep_for(200ms);
   okJobs = mgr._debugProcessTimers();
   ASSERT_EQ(okJobs.size(), 1);
   ASSERT_EQ(okJobs[0]->id, job3->id);

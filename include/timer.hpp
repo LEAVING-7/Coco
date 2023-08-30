@@ -73,8 +73,7 @@ public:
       if (deleted.contains(job->id)) {
         continue;
       }
-      // UringInstance::get().execute(job);
-      job->run(job);
+      UringInstance::get().execute(job);
     }
 
     if (mTimers.empty()) {
@@ -87,7 +86,6 @@ public:
   auto _debugProcessTimers() -> std::vector<WorkerJob*>
   {
     std::vector<WorkerJob*> jobs;
-    std::unordered_set<std::size_t> deleted;
     while (!mPendingJobs.empty()) {
       auto job = mPendingJobs.front();
       mPendingJobs.pop();
@@ -96,15 +94,17 @@ public:
         mTimers.insert(std::move(job));
       } break;
       case TimerJobKind::Delete: {
-        deleted.insert(job.jobId);
+        mDeleted.insert(job.jobId);
       } break;
       }
     }
+    
     auto now = std::chrono::steady_clock::now();
     while (!mTimers.empty() && mTimers.top().instant <= now) {
       auto job = mTimers.top().job;
       mTimers.pop();
-      if (deleted.contains(job->id)) {
+      if (auto it = mDeleted.find(job->id); it != mDeleted.end()) {
+        mDeleted.erase(it);
         continue;
       }
       jobs.push_back(job);
