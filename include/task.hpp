@@ -14,12 +14,9 @@ template <typename T = void>
 struct Task;
 
 enum class PromiseState : std::uint8_t {
-  Ready,
-  Pending,
-  Cancelled,
-  Timeout,
-  Error,
-  Done,
+  Inital = 0,
+  NeedNotify = 1,
+  Final = 2,
 };
 
 struct PromiseBase {
@@ -33,8 +30,11 @@ struct PromiseBase {
     {
       assert(handle.done() && "handle should done here");
       auto& promise = handle.promise();
-      promise.state.store(PromiseState::Done, std::memory_order_release);
-      promise.state.notify_one();
+
+      if (promise.state.exchange(PromiseState::Final) == PromiseState::NeedNotify) {
+        promise.state.notify_one();
+      }
+
       if (promise.continueHandle) {
         Proactor::get().execute(promise.continueHandle);
       }
@@ -51,7 +51,7 @@ struct PromiseBase {
 template <typename T>
 struct Promise final : PromiseBase {
   T returnValue;
-  std::atomic<PromiseState> state = PromiseState::Ready;
+  std::atomic<PromiseState> state = PromiseState::Inital;
 
   auto get_return_object() noexcept -> Task<T>;
   auto return_value(T value) noexcept -> void { returnValue = std::move(value); }
@@ -73,7 +73,7 @@ struct Promise final : PromiseBase {
 
 template <>
 struct Promise<void> : PromiseBase {
-  std::atomic<PromiseState> state = PromiseState::Ready;
+  std::atomic<PromiseState> state = PromiseState::Inital;
 
   auto get_return_object() noexcept -> Task<void>;
   auto return_void() noexcept -> void {}

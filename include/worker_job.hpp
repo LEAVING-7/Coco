@@ -27,13 +27,14 @@ struct WorkerJob {
 
   WorkerJob* next;
   fn_type run;
-  std::size_t id : 63; // the first bit indicates the job allocation position, 0 for stack, 1 for heap
+  std::size_t id : 63;
+  // indicates the job allocation position, 0 for stack, 1 for heap
   const std::size_t onHeap : 1;
 };
 
 using WokerJobQueue = Queue<&WorkerJob::next>;
 
-// TODO better implementation
+// TODO: need better implementation
 struct CoroJob : WorkerJob {
   CoroJob(std::coroutine_handle<> handle, bool onHeap) noexcept : handle(handle), WorkerJob(&CoroJob::run, onHeap) {}
   static auto run(WorkerJob* job) noexcept -> void

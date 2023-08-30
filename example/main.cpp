@@ -2,29 +2,31 @@
 #include <chrono>
 #include <cstdio>
 #include <thread>
+
 /* std::atomic_int gCount = 0;
-struct Taskkkk : WorkerJob {
-  Taskkkk(std::latch &latch) : latch(latch) {
-    run = [](WorkerJob *task) noexcept {
-      auto t = static_cast<Taskkkk *>(task);
+struct Taskkkk : coco::WorkerJob {
+  Taskkkk(std::latch& latch) : latch(latch), WorkerJob(nullptr, true)
+  {
+    run = [](WorkerJob* task) noexcept {
+      auto t = static_cast<Taskkkk*>(task);
       gCount.fetch_add(1);
-      if (gCount % 10 == 0) {
-        printf("%llX: %d\n", std::this_thread::get_id(), gCount.load());
+      if (gCount % 100 == 0) {
+        putchar('.');
+        // printf("%llX: %d\n", std::this_thread::get_id(), gCount.load());
       }
-      std::this_thread::sleep_for(1ms);
-      auto &latch = t->latch;
+      auto& latch = t->latch;
       delete t;
       latch.count_down();
     };
   }
-
-  std::latch &latch;
+  std::latch& latch;
 };
 
-int main() {
+int main()
+{
   auto now = std::chrono::steady_clock::now();
-  auto exe = MtExecutor(8);
-#define N (32 * 1024)
+  auto exe = coco::MtExecutor(8);
+#define N (1'000'000'000)
   std::latch latch2(N);
   for (int i = 0; i < N; i++) {
     exe.enqueue(new Taskkkk(latch2));
@@ -34,27 +36,29 @@ int main() {
   printf("time: %f\n", std::chrono::duration<double>(end - now).count());
   return 0;
 } */
-// #include "runtime.hpp"
 
 #include "runtime.hpp"
 using namespace coco;
 
 auto taskA() -> Task<int>
 {
-  ::puts("--task A");
+  putchar('.');
   co_return 233;
 }
 
 auto taskB() -> Task<double>
 {
-  co_await taskA();
-  ::puts("--task B");
+  // FIXME: deadlock here
+  for (int i = 0; i < 10'000'000; i++) {
+    co_await taskA();
+  }
+  ::puts("bunch of taskA fishished");
   co_return 1.233;
 }
 
 auto main() -> int
 {
-  auto runtime = Runtime(3);
+  auto runtime = Runtime(8);
 
   auto k = runtime.block([]() -> Task<int> {
     int a = co_await taskA();

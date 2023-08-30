@@ -44,11 +44,12 @@ public:
     } else {
       assert(cqe != nullptr);
       if (cqe->flags & IORING_CQE_F_MORE) {
+        seen(cqe);
         notifying = false;
       } else {
+        seen(cqe);
         return (WorkerJob*)cqe->user_data;
       }
-      seen(cqe);
     }
     return nullptr;
   }

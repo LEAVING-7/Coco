@@ -29,8 +29,7 @@ auto Worker::loop() -> void
 {
   while (true) {
     auto currState = mState.load(std::memory_order_relaxed);
-    switch (currState) {
-    case State::Waiting: {
+    if (currState == State::Waiting) {
       processTasks();
       auto wakeupJob = mProactor->wait(mNofiying);
       if (wakeupJob != nullptr) {
@@ -40,18 +39,16 @@ auto Worker::loop() -> void
       if (r == false) { // must be stop
         return;
       }
-    } break;
-    case State::Executing: {
+    } else if (currState == State::Executing) {
       processTasks();
       auto r = mState.compare_exchange_strong(currState, State::Waiting, std::memory_order_acq_rel);
       if (r == false) {
         return;
       }
-    } break;
-    case State::Stop: {
+    } else if (currState == State::Stop) [[unlikely]] {
       return;
-    }
-      [[unlikely]] default : assert(false);
+    } else {
+      assert(false);
     }
   }
 }

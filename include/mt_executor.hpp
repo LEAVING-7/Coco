@@ -26,12 +26,12 @@ public:
   template <typename T>
   [[nodiscard]] auto enqueue(T&& task) noexcept -> bool
   {
-    auto state = mState.load(std::memory_order_acquire);
-    if (state == State::Stop) {
+    auto state = mState.load(std::memory_order_relaxed);
+    if (state == State::Stop) [[unlikely]] {
       return false;
     } else if (state == State::Waiting) {
-      notify();
       pushTask(std::move(task));
+      notify();
       return true;
     } else if (state == State::Executing) {
       pushTask(std::move(task));
@@ -43,12 +43,12 @@ public:
   template <typename T>
   [[nodiscard]] auto tryEnqeue(T&& task) noexcept -> bool
   {
-    auto state = mState.load(std::memory_order_acquire);
-    if (state == State::Stop) {
+    auto state = mState.load(std::memory_order_relaxed);
+    if (state == State::Stop) [[unlikely]] {
       return false;
     } else if (state == State::Waiting) {
-      notify();
       pushTask(std::move(task));
+      notify();
       return true;
     } else if (state == State::Executing) {
       return tryPushTask(std::move(task));
@@ -85,7 +85,6 @@ private:
 
 class MtExecutor : public Executor {
 public:
-  
   MtExecutor(std::size_t threadCount);
   ~MtExecutor() noexcept override
   {
@@ -99,7 +98,7 @@ public:
 
   template <typename T>
     requires std::is_same_v<WokerJobQueue, T> || std::is_base_of_v<WorkerJob, std::remove_pointer_t<T>>
-                                               auto enqueue(T task) noexcept -> void
+                                               auto enqueue(T task) noexcept -> void // NOLINT
   {
     auto startIdx = mNextWorker.fetch_add(1, std::memory_order_relaxed) % mThreadCount;
     for (std::uint32_t i = 0; i < mThreadCount; i++) {

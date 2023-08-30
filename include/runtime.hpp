@@ -33,10 +33,12 @@ public:
 
     auto task = std::invoke(fn, std::forward<Args>(args)...);
     auto& state = task.promise().state;
+    state = coco::PromiseState::NeedNotify;
+
     mExecutor.get()->enqueue(task.handle());
-    while (state != coco::PromiseState::Done) {
+    while (state != coco::PromiseState::Final) {
       ::printf("waiting state: %d\n", std::uint8_t(state.load()));
-      state.wait(coco::PromiseState::Ready);
+      state.wait(coco::PromiseState::NeedNotify);
     }
     auto result = std::move(task.promise()).result();
     return result;
