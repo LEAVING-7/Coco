@@ -20,8 +20,6 @@ auto TimerManager::nextInstant() const noexcept -> Instant
 }
 auto TimerManager::processTimers() -> std::pair<WokerJobQueue, std::size_t>
 {
-  WokerJobQueue jobs;
-
   while (true) {
     TimerOp op{};
     {
@@ -43,6 +41,7 @@ auto TimerManager::processTimers() -> std::pair<WokerJobQueue, std::size_t>
     }
   }
 
+  WokerJobQueue jobs;
   std::size_t count = 0;
   auto now = std::chrono::steady_clock::now();
   while (!mTimers.empty() && mTimers.top().instant <= now) {

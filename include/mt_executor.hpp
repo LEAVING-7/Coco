@@ -1,9 +1,9 @@
 #pragma once
 #include "preclude.hpp"
 
+#include "proactor.hpp"
 #include "task.hpp"
 #include "timer.hpp"
-#include "uring.hpp"
 #include "util/lockfree_queue.hpp"
 
 #include <chrono>
@@ -31,10 +31,10 @@ public:
       return false;
     } else if (state == State::Waiting) {
       notify();
-      pushTask(std::forward<T>(task));
+      pushTask(std::move(task));
       return true;
     } else if (state == State::Executing) {
-      pushTask(std::forward<T>(task));
+      pushTask(std::move(task));
       return true;
     }
     assert(0);
@@ -48,10 +48,10 @@ public:
       return false;
     } else if (state == State::Waiting) {
       notify();
-      pushTask(std::forward<T>(task));
+      pushTask(std::move(task));
       return true;
     } else if (state == State::Executing) {
-      return tryPushTask(std::forward<T>(task));
+      return tryPushTask(std::move(task));
     }
     assert(0);
   }
@@ -76,39 +76,39 @@ private:
     Stop,
   };
 
-  coco::UringInstance* mUringInstance = nullptr;
+  coco::Proactor* mProactor = nullptr;
   Queue<&WorkerJob::next> mTaskQueue;
   std::mutex mQueueMt;
   std::atomic<State> mState;
   std::atomic_bool mNofiying = false;
-
-  TimerManager mTimerManager{64};
 };
 
-class MtExecutor {
+class MtExecutor : public Executor {
 public:
+  
   MtExecutor(std::size_t threadCount);
-  ~MtExecutor() noexcept
+  ~MtExecutor() noexcept override
   {
     requestStop();
     join();
   }
   auto requestStop() noexcept -> void;
   auto join() noexcept -> void;
-  auto enqueue(std::coroutine_handle<> handle) -> void;
-  auto enqueue(WokerJobQueue&& queue, std::size_t count) -> void;
+  auto enqueue(std::coroutine_handle<> handle) noexcept -> void override;
+  auto enqueue(WokerJobQueue&& queue, std::size_t count) noexcept -> void override;
 
   template <typename T>
-  auto enqueue(T&& task) noexcept -> void
+    requires std::is_same_v<WokerJobQueue, T> || std::is_base_of_v<WorkerJob, std::remove_pointer_t<T>>
+                                               auto enqueue(T task) noexcept -> void
   {
     auto startIdx = mNextWorker.fetch_add(1, std::memory_order_relaxed) % mThreadCount;
     for (std::uint32_t i = 0; i < mThreadCount; i++) {
       auto const idx = (startIdx + i) < mThreadCount ? (startIdx + i) : (startIdx + i - mThreadCount);
-      if (mWorkers[idx]->tryEnqeue(std::forward<T>(task))) {
+      if (mWorkers[idx]->tryEnqeue(task)) {
         return;
       }
     }
-    auto r = mWorkers[startIdx]->enqueue(std::forward<T>(task));
+    auto r = mWorkers[startIdx]->enqueue(task);
     assert(r);
   }
 

@@ -6,6 +6,21 @@
 
 namespace coco {
 class Runtime {
+  struct SleepAwaiter {
+    SleepAwaiter(Duration duration) : mDuration(duration), mJob(nullptr, false) {}
+    auto await_ready() const noexcept -> bool { return false; }
+    auto await_suspend(std::coroutine_handle<> handle) noexcept -> void
+    {
+      mJob.handle = handle;
+      Proactor::get().addTimer(std::chrono::steady_clock::now() + mDuration, &mJob);
+    }
+    auto await_resume() const noexcept -> void {}
+
+  private:
+    CoroJob mJob;
+    Duration mDuration;
+  };
+
 public:
   Runtime(std::size_t threadNum) : mExecutor(std::make_shared<MtExecutor>(threadNum)) {}
 
@@ -25,6 +40,13 @@ public:
     }
     auto result = std::move(task.promise()).result();
     return result;
+  }
+
+  template <typename Rep, typename Per>
+  [[nodiscard]] auto sleep(std::chrono::duration<Rep, Per> duration) -> SleepAwaiter
+  {
+    auto sleepTime = std::chrono::duration_cast<coco::Duration>(duration);
+    return SleepAwaiter(sleepTime);
   }
 
 private:

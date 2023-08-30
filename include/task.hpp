@@ -1,7 +1,7 @@
 #pragma once
 #include "preclude.hpp"
 
-#include "uring.hpp"
+#include "proactor.hpp"
 
 #include <coroutine>
 #include <memory>
@@ -36,7 +36,7 @@ struct PromiseBase {
       promise.state.store(PromiseState::Done, std::memory_order_release);
       promise.state.notify_one();
       if (promise.continueHandle) {
-        coco::UringInstance::get().execute(promise.continueHandle);
+        Proactor::get().execute(promise.continueHandle);
       }
     }
     auto await_resume() noexcept -> void {}
@@ -128,7 +128,7 @@ public:
       auto await_suspend(std::coroutine_handle<> caller) -> void
       {
         callee.promise().setContinue(caller);
-        coco::UringInstance::get().execute(callee);
+        Proactor::get().execute(callee);
       }
       auto await_resume() -> decltype(auto) { return callee.promise().result(); }
     };
@@ -143,7 +143,7 @@ public:
       auto await_suspend(std::coroutine_handle<> caller) -> void
       {
         callee.promise().setContinue(caller);
-        coco::UringInstance::get().execute(callee);
+        Proactor::get().execute(callee);
       }
       auto await_resume() -> decltype(auto) { return std::move(callee.promise()).result(); }
     };

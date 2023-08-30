@@ -2,7 +2,6 @@
 #include <chrono>
 #include <cstdio>
 #include <thread>
-int main() {}
 /* std::atomic_int gCount = 0;
 struct Taskkkk : WorkerJob {
   Taskkkk(std::latch &latch) : latch(latch) {
@@ -37,36 +36,32 @@ int main() {
 } */
 // #include "runtime.hpp"
 
-// auto taskA() -> Task<int>
-// {
-//   ::puts("--task A");
-//   co_return 233;
-// }
+#include "runtime.hpp"
+using namespace coco;
 
-// auto taskB() -> Task<double>
-// {
-//   co_await taskA();
-//   ::puts("--task B");
-//   co_return 1.233;
-// }
+auto taskA() -> Task<int>
+{
+  ::puts("--task A");
+  co_return 233;
+}
 
-// auto main2() -> int
-// {
-//   auto runtime = Runtime(3);
+auto taskB() -> Task<double>
+{
+  co_await taskA();
+  ::puts("--task B");
+  co_return 1.233;
+}
 
-//   auto k = runtime.block([]() -> Task<int> {
-//     int a = co_await taskA();
-//     double b = co_await taskB();
-//     printf("%d %f\n", a, b);
-//     puts("--hello world");
-//     co_return 233;
-//   });
-//   printf("%d\n", k);
-// }
+auto main() -> int
+{
+  auto runtime = Runtime(3);
 
-// #include "timer.hpp"
-
-// auto main() -> int
-// {
-
-// }
+  auto k = runtime.block([]() -> Task<int> {
+    int a = co_await taskA();
+    double b = co_await taskB();
+    printf("%d %f\n", a, b);
+    puts("--hello world");
+    co_return 233;
+  });
+  printf("%d\n", k);
+}

@@ -42,26 +42,21 @@ static auto convertTime(std::chrono::duration<Rep, Ratio> duration, struct __ker
   out.tv_nsec = nsec.count();
 }
 
-class UringInstance {
+class IoUring {
 public:
-  static auto get() noexcept -> UringInstance&
+  static auto get() noexcept -> IoUring&
   {
-    static thread_local auto instance = UringInstance();
+    static thread_local auto instance = IoUring();
     return instance;
   }
 
-  UringInstance();
-  ~UringInstance();
+  IoUring();
+  ~IoUring();
 
-  UringInstance(UringInstance&& other) = delete;
-  auto operator=(UringInstance&& other) -> UringInstance& = delete;
-  UringInstance(UringInstance const& other) = delete;
-  auto operator=(UringInstance const& other) -> UringInstance& = delete;
-
-  auto attachWorker(Worker* worker) noexcept -> void { mWorker = worker; }
-  auto attachMtExecutor(MtExecutor* exe) noexcept -> void { mMtExecutor = exe; }
-  auto execute(WorkerJob* job) noexcept -> void;
-  auto execute(std::coroutine_handle<> handle) -> void;
+  IoUring(IoUring&& other) = delete;
+  auto operator=(IoUring&& other) -> IoUring& = delete;
+  IoUring(IoUring const& other) = delete;
+  auto operator=(IoUring const& other) -> IoUring& = delete;
 
   auto prepRecv(Token token, int fd, BufSlice buf, int flag = 0) -> void;
   auto prepSend(Token token, int fd, BufView buf, int flag = 0) -> void;
@@ -72,6 +67,7 @@ public:
 
   auto seen(io_uring_cqe* cqe) -> void;
   auto submitWait(int waitn) -> int;
+
   template <typename Rep, typename Ratio>
   auto submitWait(io_uring_cqe*& cqe, std::chrono::duration<Rep, Ratio> duration) -> std::errc
   {
@@ -96,8 +92,6 @@ private:
   auto fetchSqe() -> io_uring_sqe*;
 
 private:
-  MtExecutor* mMtExecutor;
-  Worker* mWorker;
   int mEventFd;
   ::io_uring mUring;
 };

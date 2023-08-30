@@ -1,3 +1,3 @@
-add_executable(draft main.cpp)
-target_link_libraries(draft coco)
-set_target_properties(draft PROPERTIES CXX_STANDARD 20)
+add_executable(example main.cpp)
+target_link_libraries(example coco)
+set_target_properties(example PROPERTIES CXX_STANDARD 20)

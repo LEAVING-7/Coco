@@ -12,7 +12,6 @@ message(STATUS "liburing: ${LIBURING} found")
 
 include(cmake/add_external.cmake)
 
-
 # address santitlizer
 add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
 add_link_options(-fsanitize=address -fno-omit-frame-pointer)

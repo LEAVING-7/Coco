@@ -21,7 +21,7 @@ auto Worker::forceStop() -> void
 }
 auto Worker::start(std::latch& latch) -> void
 {
-  mUringInstance = &UringInstance::get();
+  mProactor = &Proactor::get();
   mState = State::Waiting;
   latch.count_down();
 }
@@ -32,19 +32,9 @@ auto Worker::loop() -> void
     switch (currState) {
     case State::Waiting: {
       processTasks();
-      io_uring_cqe* cqe = nullptr;
-      auto e = mUringInstance->submitWait(cqe, 100s);
-      if (e == std::errc::stream_timeout) {
-      } else if (e != std::errc(0)) {
-        // throw std::system_error(int(e), std::system_category(), "submit and wait failed");
-      } else {
-        assert(cqe != nullptr);
-        if (cqe->flags & IORING_CQE_F_MORE) {
-          mNofiying = false;
-        } else {
-          mTaskQueue.pushFront((WorkerJob*)cqe->user_data);
-        }
-        mUringInstance->seen(cqe);
+      auto wakeupJob = mProactor->wait(mNofiying);
+      if (wakeupJob != nullptr) {
+        pushTask(wakeupJob);
       }
       auto r = mState.compare_exchange_strong(currState, State::Executing, std::memory_order_acq_rel);
       if (r == false) { // must be stop
@@ -68,7 +58,7 @@ auto Worker::loop() -> void
 auto Worker::notify() -> void
 {
   if (mNofiying.exchange(true) == false) {
-    mUringInstance->notify();
+    mProactor->notify();
     return;
   }
 }
@@ -130,7 +120,7 @@ MtExecutor::MtExecutor(std::size_t threadCount) : mThreadCount(threadCount)
     for (int i = 0; i < threadCount; i++) {
       mThreads.emplace_back([this, i, &finishLatch] {
         mWorkers[i]->start(finishLatch);
-        UringInstance::get().attachMtExecutor(this);
+        Proactor::get().attachExecutor(this);
         mWorkers[i]->loop();
       });
     }
@@ -156,13 +146,13 @@ auto MtExecutor::join() noexcept -> void
   }
 }
 
-auto MtExecutor::enqueue(std::coroutine_handle<> handle) -> void
+auto MtExecutor::enqueue(std::coroutine_handle<> handle) noexcept -> void
 {
-  auto job = new CoroJob(handle);
+  auto job = new CoroJob(handle, true);
   enqueue(job);
 }
 
-auto MtExecutor::enqueue(WokerJobQueue&& queue, std::size_t count) -> void
+auto MtExecutor::enqueue(WokerJobQueue&& queue, std::size_t count) noexcept -> void
 {
   if (count == 0) {
     while (auto job = queue.popFront()) {
