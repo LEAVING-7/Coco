@@ -1,0 +1,5 @@
+/build
+/draft
+
+.vscode
+.cache
