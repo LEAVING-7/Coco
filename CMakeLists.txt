@@ -21,6 +21,7 @@ add_link_options(-fsanitize=address -fno-omit-frame-pointer)
 add_library(coco STATIC
   src/uring.cpp
   src/mt_executor.cpp
+  src/timer.cpp
 )
 set_target_properties(coco PROPERTIES CXX_STANDARD 20)
 target_include_directories(coco PUBLIC include)

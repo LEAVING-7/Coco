@@ -55,6 +55,27 @@ public:
     return item;
   }
 
+  auto popFront(std::size_t n) noexcept -> Queue
+  {
+    auto q = Queue();
+    q.mHead = mHead;
+    q.mTail = mHead;
+    for (std::size_t i = 1; i < n; i++) {
+      if (q.mTail == nullptr) {
+        break;
+      }
+      q.mTail = q.mTail->*next;
+    }
+    if (q.mTail != nullptr) {
+      mHead = q.mTail->*next;
+      q.mTail->*next = nullptr;
+    } else {
+      mHead = nullptr;
+      mTail = nullptr;
+    }
+    return q;
+  }
+
   auto pushFront(Item* item) noexcept -> void
   {
     item->*next = mHead;

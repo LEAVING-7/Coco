@@ -2,6 +2,7 @@
 #include "preclude.hpp"
 
 #include "task.hpp"
+#include "timer.hpp"
 #include "uring.hpp"
 #include "util/lockfree_queue.hpp"
 
@@ -13,32 +14,6 @@
 using namespace std::chrono_literals;
 
 namespace coco {
-inline auto genJobId() -> std::size_t
-{
-  static std::atomic<std::size_t> id = 0;
-  return id++;
-}
-
-struct WorkerJob {
-  using fn_type = void (*)(WorkerJob* task) noexcept;
-  WorkerJob(fn_type fn) noexcept : run(fn), next(nullptr), id(genJobId()) {}
-
-  WorkerJob* next;
-  void (*run)(WorkerJob* task) noexcept;
-  std::size_t id;
-};
-
-// TODO better implementation
-struct CoroJob : WorkerJob {
-  CoroJob(std::coroutine_handle<> handle) noexcept : handle(handle), WorkerJob(&CoroJob::run) {}
-  static auto run(WorkerJob* job) noexcept -> void
-  {
-    auto coroJob = static_cast<CoroJob*>(job);
-    coroJob->handle.resume();
-    delete coroJob;
-  }
-  std::coroutine_handle<> handle;
-};
 
 class Worker {
 public:
@@ -48,29 +23,37 @@ public:
   auto operator=(Worker const&) -> Worker& = delete;
   auto operator=(Worker&&) -> Worker& = delete;
 
-  template <bool tryEnqueue = false>
-  [[nodiscard]] auto enqueue(WorkerJob* task) noexcept -> bool
+  template <typename T>
+  [[nodiscard]] auto enqueue(T&& task) noexcept -> bool
   {
     auto state = mState.load(std::memory_order_acquire);
-    switch (state) {
-    case State::Waiting: {
-      notify();
-      pushTask(task);
-      return true;
-    } break;
-    case State::Executing: {
-      if constexpr (!tryEnqueue) {
-        pushTask(task);
-        return true;
-      } else {
-        return tryPushTask(task);
-      }
-    } break;
-    case State::Stop: {
+    if (state == State::Stop) {
       return false;
-    } break;
+    } else if (state == State::Waiting) {
+      notify();
+      pushTask(std::forward<T>(task));
+      return true;
+    } else if (state == State::Executing) {
+      pushTask(std::forward<T>(task));
+      return true;
     }
-    return false;
+    assert(0);
+  }
+
+  template <typename T>
+  [[nodiscard]] auto tryEnqeue(T&& task) noexcept -> bool
+  {
+    auto state = mState.load(std::memory_order_acquire);
+    if (state == State::Stop) {
+      return false;
+    } else if (state == State::Waiting) {
+      notify();
+      pushTask(std::forward<T>(task));
+      return true;
+    } else if (state == State::Executing) {
+      return tryPushTask(std::forward<T>(task));
+    }
+    assert(0);
   }
 
   auto forceStop() -> void;
@@ -82,6 +65,9 @@ private:
   auto processTasks() -> void;
   auto pushTask(WorkerJob* job) -> void;
   auto tryPushTask(WorkerJob* job) -> bool;
+
+  auto pushTask(WokerJobQueue&& jobs) -> void;
+  auto tryPushTask(WokerJobQueue&& jobs) -> bool;
 
 private:
   enum class State {
@@ -95,6 +81,8 @@ private:
   std::mutex mQueueMt;
   std::atomic<State> mState;
   std::atomic_bool mNofiying = false;
+
+  TimerManager mTimerManager{64};
 };
 
 class MtExecutor {
@@ -107,8 +95,22 @@ public:
   }
   auto requestStop() noexcept -> void;
   auto join() noexcept -> void;
-  auto enqueue(WorkerJob* task) noexcept -> void;
   auto enqueue(std::coroutine_handle<> handle) -> void;
+  auto enqueue(WokerJobQueue&& queue, std::size_t count) -> void;
+
+  template <typename T>
+  auto enqueue(T&& task) noexcept -> void
+  {
+    auto startIdx = mNextWorker.fetch_add(1, std::memory_order_relaxed) % mThreadCount;
+    for (std::uint32_t i = 0; i < mThreadCount; i++) {
+      auto const idx = (startIdx + i) < mThreadCount ? (startIdx + i) : (startIdx + i - mThreadCount);
+      if (mWorkers[idx]->tryEnqeue(std::forward<T>(task))) {
+        return;
+      }
+    }
+    auto r = mWorkers[startIdx]->enqueue(std::forward<T>(task));
+    assert(r);
+  }
 
 private:
   const std::uint32_t mThreadCount;

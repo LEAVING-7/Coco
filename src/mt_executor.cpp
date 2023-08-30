@@ -86,7 +86,7 @@ auto Worker::processTasks() -> void
 auto Worker::pushTask(WorkerJob* job) -> void
 {
   mQueueMt.lock();
-  mTaskQueue.pushFront(job);
+  mTaskQueue.pushBack(job);
   mQueueMt.unlock();
 }
 auto Worker::tryPushTask(WorkerJob* job) -> bool
@@ -95,7 +95,24 @@ auto Worker::tryPushTask(WorkerJob* job) -> bool
   if (!lk.owns_lock()) {
     return false;
   }
-  mTaskQueue.pushFront(job);
+  mTaskQueue.pushBack(job);
+  return true;
+}
+
+auto Worker::pushTask(WokerJobQueue&& jobs) -> void
+{
+  mQueueMt.lock();
+  mTaskQueue.append(std::move(jobs));
+  mQueueMt.unlock();
+}
+
+auto Worker::tryPushTask(WokerJobQueue&& jobs) -> bool
+{
+  std::unique_lock lk(mQueueMt, std::try_to_lock);
+  if (!lk.owns_lock()) {
+    return false;
+  }
+  mTaskQueue.append(std::move(jobs));
   return true;
 }
 
@@ -139,23 +156,25 @@ auto MtExecutor::join() noexcept -> void
   }
 }
 
-auto MtExecutor::enqueue(WorkerJob* task) noexcept -> void
-{
-  auto startIdx = mNextWorker.fetch_add(1, std::memory_order_relaxed) % mThreadCount;
-  for (std::uint32_t i = 0; i < mThreadCount; i++) {
-    auto const idx = (startIdx + i) < mThreadCount ? (startIdx + i) : (startIdx + i - mThreadCount);
-    if (mWorkers[idx]->enqueue<true>(task)) {
-      return;
-    }
-  }
-  auto r = mWorkers[startIdx]->enqueue<false>(task);
-  assert(r);
-}
-
 auto MtExecutor::enqueue(std::coroutine_handle<> handle) -> void
 {
   auto job = new CoroJob(handle);
   enqueue(job);
+}
+
+auto MtExecutor::enqueue(WokerJobQueue&& queue, std::size_t count) -> void
+{
+  if (count == 0) {
+    while (auto job = queue.popFront()) {
+      enqueue(job);
+    }
+  } else {
+    while (!queue.empty()) {
+      auto const perThread = count / mThreadCount;
+      auto perThreadJobs = queue.popFront(perThread);
+      enqueue(std::move(perThreadJobs));
+    }
+  }
 }
 
 } // namespace coco

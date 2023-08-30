@@ -1,8 +1,9 @@
 #pragma once
 #include "preclude.hpp"
 
-#include "mt_executor.hpp"
+#include "woker_job.hpp"
 #include "util/heap.hpp"
+#include "util/lockfree_queue.hpp"
 
 #include <chrono>
 #include <queue>
@@ -17,6 +18,7 @@ enum class TimerOpKind : std::uint8_t {
   Add,
   Delete,
 };
+
 struct TimerOp {
   Instant instant;
   union {
@@ -34,52 +36,17 @@ public:
   TimerManager(std::size_t capcacity) : mTimers(capcacity), mPendingJobs() {}
   ~TimerManager() = default;
 
-  auto addTimer(Instant time, WorkerJob* job) noexcept -> void { mPendingJobs.push({time, job, TimerOpKind::Add}); }
-  auto deleteTimer(std::size_t jobId) noexcept -> void
-  {
-    mPendingJobs.push(TimerOp{.instant = Instant(), .jobId = jobId, .kind = TimerOpKind::Delete});
-  }
-
-  auto nextInstant() const noexcept -> Instant
-  {
-    if (mTimers.empty()) {
-      return Instant::max();
-    }
-    return mTimers.top().instant;
-  }
-
-  auto processTimers() -> Queue<&WorkerJob::next>
-  {
-    Queue<&WorkerJob::next> jobs;
-    while (!mPendingJobs.empty()) {
-      auto job = mPendingJobs.front();
-      mPendingJobs.pop();
-      switch (job.kind) {
-      case TimerOpKind::Add: {
-        mTimers.insert(std::move(job));
-      } break;
-      case TimerOpKind::Delete: {
-        mDeleted.insert(job.jobId);
-      } break;
-      }
-    }
-
-    auto now = std::chrono::steady_clock::now();
-    while (!mTimers.empty() && mTimers.top().instant <= now) {
-      auto job = mTimers.top().job;
-      mTimers.pop();
-      if (auto it = mDeleted.find(job->id); it != mDeleted.end()) {
-        mDeleted.erase(it);
-        continue;
-      }
-      jobs.pushBack(job);
-    }
-    return jobs;
-  }
+  // MT-Safe
+  auto addTimer(Instant time, WorkerJob* job) noexcept -> void;
+  // MT-Safe
+  auto deleteTimer(std::size_t jobId) noexcept -> void;
+  auto nextInstant() const noexcept -> Instant;
+  auto processTimers() -> std::pair<WokerJobQueue, std::size_t>;
 
 private:
-  std::unordered_set<std::size_t> mDeleted;
+  std::mutex mPendingJobsMt;
   std::queue<TimerOp> mPendingJobs;
+  std::unordered_set<std::size_t> mDeleted;
   Heap<TimerOp, 4> mTimers;
 };
 } // namespace coco

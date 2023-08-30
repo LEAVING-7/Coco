@@ -21,7 +21,7 @@ TEST(Timer, General)
     mgr.addTimer(now + std::chrono::milliseconds(i * 10), jobs[i]);
   }
   std::this_thread::sleep_for(100ms);
-  auto okJobs = mgr.processTimers();
+  auto okJobs = mgr.processTimers().first;
   int cnt = 0;
   while (auto job = okJobs.popFront()) {
     ASSERT_EQ(job->id, cnt++);
@@ -31,7 +31,7 @@ TEST(Timer, General)
     mgr.deleteTimer(jobs[i]->id);
   }
   std::this_thread::sleep_for(100ms);
-  okJobs = mgr.processTimers();
+  okJobs = mgr.processTimers().first;
   auto job = okJobs.popFront();
   ASSERT_EQ(job->id, 20);
   ASSERT_TRUE(okJobs.empty());
@@ -54,20 +54,20 @@ TEST(Timer, AddAndDelete)
   mgr.deleteTimer(job2->id);
 
   std::this_thread::sleep_for(100ms);
-  auto okJobs = mgr.processTimers();
+  auto okJobs = mgr.processTimers().first;
   auto job = okJobs.popFront();
   ASSERT_EQ(job->id, job1->id);
   ASSERT_EQ(okJobs.empty(), 1);
   ASSERT_EQ(mgr.nextInstant(), now + 200ms);
-  
+
   std::this_thread::sleep_for(200ms);
-  okJobs = mgr.processTimers();
+  okJobs = mgr.processTimers().first;
   job = okJobs.popFront();
   ASSERT_EQ(job->id, job3->id);
   ASSERT_TRUE(okJobs.empty());
 
   std::this_thread::sleep_for(100ms);
-  okJobs = mgr.processTimers();
+  okJobs = mgr.processTimers().first;
   ASSERT_TRUE(okJobs.empty());
   ASSERT_EQ(mgr.nextInstant(), coco::Instant::max());
 
