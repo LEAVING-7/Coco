@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <vector>
 
+namespace coco {
 template <typename T, size_t N, typename P = std::less<T>>
 class Heap {
 public:
@@ -38,6 +39,7 @@ public:
     return true;
   }
   auto top() -> T& { return mData[0]; }
+  auto top() const -> T const& { return mData[0]; }
 
 private:
   auto siftUp(std::size_t idx) -> void
@@ -70,3 +72,4 @@ private:
 private:
   std::vector<T> mData;
 };
+} // namespace coco

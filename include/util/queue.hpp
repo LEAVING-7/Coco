@@ -4,26 +4,32 @@
 #include <mutex>
 #include <utility>
 
-template <auto Next> class Queue {};
-template <typename Item, Item *Item::*next> class Queue<next> {
+namespace coco {
+template <auto Next>
+class Queue;
+template <typename Item, Item* Item::*next>
+class Queue<next> {
 public:
   Queue() noexcept = default;
-  Queue(Queue &&other) noexcept
-      : mHead(std::exchange(other.mHead, nullptr)),
-        mTail(std::exchange(other.mTail, nullptr)) {}
-  auto operator=(Queue &&other) noexcept -> Queue & {
-    std::swap(mHead, other.head);
-    std::swap(mTail, other.tail);
+  Queue(Queue&& other) noexcept : mHead(std::exchange(other.mHead, nullptr)), mTail(std::exchange(other.mTail, nullptr))
+  {
+  }
+  auto operator=(Queue&& other) noexcept -> Queue&
+  {
+    std::swap(mHead, other.mHead);
+    std::swap(mTail, other.mTail);
     return *this;
   }
-  ~Queue() noexcept {
+  ~Queue() noexcept
+  {
     auto r = empty();
     assert(r);
   }
 
-  static auto from(Item *list) noexcept -> Queue {
-    Item *newHead = nullptr;
-    Item *newTail = list;
+  static auto from(Item* list) noexcept -> Queue
+  {
+    Item* newHead = nullptr;
+    Item* newTail = list;
     while (list != nullptr) {
       auto n = list->*next;
       list->*next = newHead;
@@ -37,18 +43,20 @@ public:
   }
 
   auto empty() const noexcept -> bool { return mHead == nullptr; }
-  auto popFront() noexcept -> Item * {
+  auto popFront() noexcept -> Item*
+  {
     if (mHead == nullptr) {
       return nullptr;
     }
-    Item *item = std::exchange(mHead, mHead->*next);
+    Item* item = std::exchange(mHead, mHead->*next);
     if (item->*next == nullptr) {
       mTail = nullptr;
     }
     return item;
   }
 
-  auto pushFront(Item *item) noexcept -> void {
+  auto pushFront(Item* item) noexcept -> void
+  {
     item->*next = mHead;
     mHead = item;
     if (mTail == nullptr) {
@@ -56,7 +64,8 @@ public:
     }
   }
 
-  auto pushBack(Item *item) noexcept -> void {
+  auto pushBack(Item* item) noexcept -> void
+  {
     item->*next = nullptr;
     if (mTail == nullptr) {
       mHead = item;
@@ -66,11 +75,12 @@ public:
     mTail = item;
   }
 
-  auto append(Queue other) noexcept -> void {
+  auto append(Queue other) noexcept -> void
+  {
     if (other.empty()) {
       return;
     }
-    auto *otherHead = std::exchange(other.mHead, nullptr);
+    auto* otherHead = std::exchange(other.mHead, nullptr);
     if (empty()) {
       mHead = otherHead;
     } else {
@@ -79,7 +89,8 @@ public:
     mTail = std::exchange(other.mTail, nullptr);
   }
 
-  auto preappend(Queue other) noexcept -> void {
+  auto preappend(Queue other) noexcept -> void
+  {
     if (other.empty()) {
       return;
     }
@@ -92,10 +103,11 @@ public:
     other.mHead = nullptr;
   }
 
-  auto front() noexcept -> Item * { return mHead; }
-  auto back() noexcept -> Item * { return mTail; }
+  auto front() noexcept -> Item* { return mHead; }
+  auto back() noexcept -> Item* { return mTail; }
 
 private:
-  Item *mHead = nullptr;
-  Item *mTail = nullptr;
+  Item* mHead = nullptr;
+  Item* mTail = nullptr;
 };
+} // namespace coco

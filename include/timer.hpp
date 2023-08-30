@@ -13,20 +13,20 @@ namespace coco {
 using Instant = std::chrono::steady_clock::time_point;
 using Duration = std::chrono::steady_clock::duration;
 
-enum class TimerJobKind : std::uint8_t {
+enum class TimerOpKind : std::uint8_t {
   Add,
   Delete,
 };
-struct TimerJob {
+struct TimerOp {
   Instant instant;
   union {
     WorkerJob* job;    // add a timer
     std::size_t jobId; // for delete a timer
   };
-  TimerJobKind kind;
+  TimerOpKind kind;
 };
 
-inline auto operator<(TimerJob const& lhs, TimerJob const& rhs) noexcept -> bool { return lhs.instant < rhs.instant; }
+inline auto operator<(TimerOp const& lhs, TimerOp const& rhs) noexcept -> bool { return lhs.instant < rhs.instant; }
 
 class TimerManager {
 public:
@@ -34,71 +34,36 @@ public:
   TimerManager(std::size_t capcacity) : mTimers(capcacity), mPendingJobs() {}
   ~TimerManager() = default;
 
-  auto addTimer(Instant time, WorkerJob* job) noexcept -> void { mPendingJobs.push({time, job, TimerJobKind::Add}); }
+  auto addTimer(Instant time, WorkerJob* job) noexcept -> void { mPendingJobs.push({time, job, TimerOpKind::Add}); }
   auto deleteTimer(std::size_t jobId) noexcept -> void
   {
-    mPendingJobs.push(TimerJob{.instant = Instant(), .jobId = jobId, .kind = TimerJobKind::Delete});
-  }
-  auto nextInstant() -> Duration
-  {
-    auto instant = processTimers();
-    if (instant == Instant()) {
-      return Duration::zero();
-    } else {
-      return instant - std::chrono::steady_clock::now();
-    }
+    mPendingJobs.push(TimerOp{.instant = Instant(), .jobId = jobId, .kind = TimerOpKind::Delete});
   }
 
-  auto processTimers() -> Instant
+  auto nextInstant() const noexcept -> Instant
   {
-    std::unordered_set<std::size_t> deleted;
-    while (!mPendingJobs.empty()) {
-      auto job = mPendingJobs.front();
-      mPendingJobs.pop();
-      switch (job.kind) {
-      case TimerJobKind::Add: {
-        mTimers.insert(std::move(job));
-      } break;
-      case TimerJobKind::Delete: {
-        deleted.insert(job.jobId);
-      } break;
-      }
-    }
-    ::printf("timer size %zu\n", mTimers.size());
-
-    auto now = std::chrono::steady_clock::now();
-    while (!mTimers.empty() && mTimers.top().instant <= now) {
-      auto job = mTimers.top().job;
-      mTimers.pop();
-      if (deleted.contains(job->id)) {
-        continue;
-      }
-      UringInstance::get().execute(job);
-    }
-
     if (mTimers.empty()) {
-      return Instant();
-    } else {
-      return mTimers.top().instant;
+      return Instant::max();
     }
+    return mTimers.top().instant;
   }
 
-  auto _debugProcessTimers() -> std::vector<WorkerJob*>
+  auto processTimers() -> Queue<&WorkerJob::next>
   {
-    std::vector<WorkerJob*> jobs;
+    Queue<&WorkerJob::next> jobs;
     while (!mPendingJobs.empty()) {
       auto job = mPendingJobs.front();
       mPendingJobs.pop();
       switch (job.kind) {
-      case TimerJobKind::Add: {
+      case TimerOpKind::Add: {
         mTimers.insert(std::move(job));
       } break;
-      case TimerJobKind::Delete: {
+      case TimerOpKind::Delete: {
         mDeleted.insert(job.jobId);
       } break;
       }
     }
-    
+
     auto now = std::chrono::steady_clock::now();
     while (!mTimers.empty() && mTimers.top().instant <= now) {
       auto job = mTimers.top().job;
@@ -107,14 +72,14 @@ public:
         mDeleted.erase(it);
         continue;
       }
-      jobs.push_back(job);
+      jobs.pushBack(job);
     }
     return jobs;
   }
 
 private:
   std::unordered_set<std::size_t> mDeleted;
-  std::queue<TimerJob> mPendingJobs;
-  Heap<TimerJob, 4> mTimers;
+  std::queue<TimerOp> mPendingJobs;
+  Heap<TimerOp, 4> mTimers;
 };
 } // namespace coco
