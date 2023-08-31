@@ -30,9 +30,7 @@ auto Worker::loop() -> void
   while (true) {
     auto currState = mState.load(std::memory_order_relaxed);
     if (currState == State::Waiting) {
-      ;
       auto wakeupJob = mProactor->wait(mNofiying);
-      ;
       auto r = mState.compare_exchange_strong(currState, State::Executing, std::memory_order_acq_rel);
       if (wakeupJob != nullptr) {
         auto r = enqueue(wakeupJob);
@@ -59,6 +57,7 @@ auto Worker::notify() -> void
     mProactor->notify();
     return;
   }
+  ::puts("notify failed");
 }
 auto Worker::processTasks() -> void
 {
@@ -68,11 +67,14 @@ auto Worker::processTasks() -> void
   while (auto job = jobs.popFront()) {
     job->run(job);
   }
+  // auto jobs2 = mLockFreeQueue.popAll();
+  // while (auto job = jobs2.popFront()) {
+  //   job->run(job);
+  // }
 }
 auto Worker::pushTask(WorkerJob* job) -> void
 {
   mQueueMt.lock();
-  ;
   mTaskQueue.pushBack(job);
   mQueueMt.unlock();
 }
@@ -80,7 +82,6 @@ auto Worker::tryPushTask(WorkerJob* job) -> bool
 {
   std::unique_lock lk(mQueueMt, std::try_to_lock);
   if (!lk.owns_lock()) {
-    ;
     return false;
   };
   mTaskQueue.pushBack(job);
@@ -153,9 +154,7 @@ auto MtExecutor::enqueue(std::coroutine_handle<> handle) noexcept -> void
 auto MtExecutor::enqueue(WokerJobQueue&& queue, std::size_t count) noexcept -> void
 {
   if (count == 0) {
-    while (auto job = queue.popFront()) {
-      enqueue(job);
-    }
+    enqueue(std::move(queue));
   } else {
     while (!queue.empty()) {
       auto const perThread = count / mThreadCount;

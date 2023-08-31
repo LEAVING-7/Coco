@@ -42,15 +42,19 @@ using namespace coco;
 
 auto taskA() -> Task<int>
 {
+  ::puts("taskA");
   co_return 233;
 }
 
 auto taskB() -> Task<double>
 {
-  // FIXME: deadlock here
-  for (int i = 0; i < 1'000'000'000; i++) {
+  auto now = std::chrono::steady_clock::now();
+  for (int i = 0; i < 1'000'000; i++) {
     co_await taskA();
   };
+  auto end = std::chrono::steady_clock::now();
+  printf("time: %f\n", std::chrono::duration<double>(end - now).count());
+  // 39.761779s for now
   co_return 1.233;
 }
 
@@ -58,10 +62,14 @@ auto main() -> int
 {
   auto runtime = Runtime(8);
 
-  auto k = runtime.block([]() -> Task<int> {
+  auto k = runtime.block([&]() -> Task<int> {
     int a = co_await taskA();
-    double b = co_await taskB();
-    printf("%d %f\n", a, b);
+    for (int i = 0; i < 100; i++) {
+      co_await runtime.sleep(100ms);
+      co_await taskA();
+    }
+    // double b = co_await taskB();
+    // printf("%d %f\n", a, b);
     puts("--hello world");
     co_return 233;
   });

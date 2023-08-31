@@ -42,13 +42,13 @@ auto IoUring::prepAccept(Token token, int fd, sockaddr* addr, socklen_t* addrlen
   ::io_uring_sqe_set_data(sqe, token);
 }
 auto IoUring::seen(io_uring_cqe* cqe) -> void { ::io_uring_cqe_seen(&mUring, cqe); }
-auto IoUring::submitWait(int waitn) -> int
+auto IoUring::submitWait(int waitn) -> std::errc
 {
   auto r = ::io_uring_submit_and_wait(&mUring, waitn);
   if (r < 0) {
-    throw std::system_error(-r, std::system_category(), "submit and wait failed");
+    return std::errc(-r);
   }
-  return r;
+  return std::errc(0);
 }
 auto IoUring::prepCancel(int fd) -> void
 {
@@ -81,4 +81,5 @@ auto IoUring::fetchSqe() -> io_uring_sqe*
   }
   return sqe;
 }
+auto IoUring::advance(std::uint32_t n) -> void { ::io_uring_cq_advance(&mUring, n); }
 } // namespace coco

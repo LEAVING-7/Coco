@@ -30,40 +30,57 @@ public:
   auto addTimer(Instant time, WorkerJob* job) noexcept -> void { mTimerManager.addTimer(time, job); }
   auto deleteTimer(std::size_t jobId) noexcept -> void { mTimerManager.deleteTimer(jobId); }
 
-  auto notify() -> void
-  {
-    std::scoped_lock lk(mUringNotifyMt);
-    mUring.notify();
-  }
+  auto notify() -> void { mUring.notify(); }
   auto wait(std::atomic_bool& notifying) -> WorkerJob*
   {
-    // defer {  };
     auto [jobs, count] = mTimerManager.processTimers();
-    execute(std::move(jobs));
+    while (auto job = jobs.popFront()) {
+      ::puts("pop job");
+      job->run(job);
+    }
     auto future = mTimerManager.nextInstant();
     auto duration = future - std::chrono::steady_clock::now();
     io_uring_cqe* cqe = nullptr;
-    auto e = mUring.submitWait(cqe, std::chrono::seconds(5));
+    auto e = mUring.submitWait(cqe, duration);
     if (e == std::errc::stream_timeout) {
-      // time out
-      assert("timeout" && false);
+      // timeout
     } else if (e != std::errc(0)) {
-      // error occured
+      assert(false); // error occured
     } else {
       assert(cqe != nullptr);
       if (cqe->flags & IORING_CQE_F_MORE) {
-        seen(cqe);
         notifying.store(false);
-        return nullptr;
       } else {
-        seen(cqe);
-        return (WorkerJob*)cqe->user_data;
+        auto job = (WorkerJob*)cqe->user_data;
+        job->run(job);
       }
     }
+    mUring.seen(cqe);
+
+    /*     auto e = mUring.submitWait(1);
+        if (e != std::errc(0)) {
+          // error occured
+          assert(false);
+        }
+        io_uring_cqe* cqe = nullptr;
+        std::uint32_t head, completed = 0;
+        io_uring_for_each_cqe(mUring.uring(), head, cqe)
+        {
+          completed++;
+          assert(cqe != nullptr);
+          if (cqe->flags & IORING_CQE_F_MORE) {
+            ::puts("more");
+            notifying.store(false);
+          } else {
+            auto job = (WorkerJob*)cqe->user_data;
+            job->run(job);
+          }
+        }
+        if (completed) {
+          mUring.advance(completed);
+        } */
     return nullptr;
   }
-  // TODO
-  auto seen(io_uring_cqe* cqe) -> void { mUring.seen(cqe); }
 
   auto prepRecv(Token token, int fd, BufSlice buf, int flag = 0) -> void { mUring.prepRecv(token, fd, buf, flag); }
   auto prepSend(Token token, int fd, BufView buf, int flag = 0) -> void { mUring.prepSend(token, fd, buf, flag); }
@@ -78,8 +95,6 @@ public:
 private:
   Executor* mExecutor;
   TimerManager mTimerManager{64};
-
-  std::mutex mUringNotifyMt;
   IoUring mUring{};
 };
 } // namespace coco

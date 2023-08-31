@@ -44,12 +44,6 @@ static auto convertTime(std::chrono::duration<Rep, Ratio> duration, struct __ker
 
 class IoUring {
 public:
-  static auto get() noexcept -> IoUring&
-  {
-    static thread_local auto instance = IoUring();
-    return instance;
-  }
-
   IoUring();
   ~IoUring();
 
@@ -66,7 +60,8 @@ public:
   auto prepClose(Token token, int fd) -> void;
 
   auto seen(io_uring_cqe* cqe) -> void;
-  auto submitWait(int waitn) -> int;
+  auto advance(std::uint32_t n) -> void;
+  auto submitWait(int waitn) -> std::errc;
 
   template <typename Rep, typename Ratio>
   auto submitWait(io_uring_cqe*& cqe, std::chrono::duration<Rep, Ratio> duration) -> std::errc
@@ -87,6 +82,8 @@ public:
 
   // TODO: I can't find a method to notify a uring without a real fd :(.
   auto notify() -> void;
+
+  auto uring() -> ::io_uring* { return &mUring; }
 
 private:
   auto fetchSqe() -> io_uring_sqe*;

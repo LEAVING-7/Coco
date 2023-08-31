@@ -25,16 +25,17 @@ public:
   template <typename T>
   [[nodiscard]] auto enqueue(T&& task) noexcept -> bool
   {
-
+    ::puts("enqueue");
     auto state = mState.load(std::memory_order_relaxed);
     if (state == State::Stop) [[unlikely]] {
       return false;
     } else if (state == State::Waiting) {
-      pushTask(std::move(task));
+      pushTask(std::move<T>(task));
       notify();
       return true;
     } else if (state == State::Executing) {
-      pushTask(std::move(task));
+      pushTask(std::move<T>(task));
+      notify();
       return true;
     }
     assert(0);
@@ -43,12 +44,10 @@ public:
   template <typename T>
   [[nodiscard]] auto tryEnqeue(T&& task) noexcept -> bool
   {
-
     auto state = mState.load(std::memory_order_relaxed);
     if (state == State::Stop) [[unlikely]] {
       return false;
     } else if (state == State::Waiting) {
-
       auto b = tryPushTask(std::move(task));
       if (b) {
         notify();
@@ -71,6 +70,9 @@ public:
 
 private:
   auto processTasks() -> void;
+
+  // auto pushTaskLockFree(WorkerJob* job) -> void { mLockFreeQueue.pushFront(job); }
+
   auto pushTask(WorkerJob* job) -> void;
   auto tryPushTask(WorkerJob* job) -> bool;
 
@@ -85,6 +87,7 @@ private:
   };
 
   coco::Proactor* mProactor = nullptr;
+
   Queue<&WorkerJob::next> mTaskQueue;
   std::mutex mQueueMt;
   std::atomic<State> mState;
