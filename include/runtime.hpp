@@ -13,7 +13,8 @@ class Runtime {
     template <typename Promise>
     auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
     {
-      Proactor::get().addTimer(std::chrono::steady_clock::now() + mDuration, handle.promise().getThisJob());
+      auto job = handle.promise().getThisJob();
+      Proactor::get().addTimer(std::chrono::steady_clock::now() + mDuration, job);
     }
     auto await_resume() const noexcept -> void {}
 
@@ -54,30 +55,34 @@ public:
 
   template <typename TaskTupleTy>
   struct WaitAllAwaiter {
-    WaitAllAwaiter(Executor* executor, TaskTupleTy&& tasks)
-        : mJob({}, {}), mExecutor(executor), mTasks(std::move(tasks))
-    {
-    }
+    WaitAllAwaiter(Executor* executor, TaskTupleTy&& tasks) : mExecutor(executor), mTasks(std::move(tasks)) {}
 
     auto await_ready() const noexcept -> bool { return false; }
     template <typename Promise>
     auto await_suspend(std::coroutine_handle<Promise> handle) -> void
     {
-      mJob.mHandle = handle;
-      auto setupTask = [this](auto&& task) {
-        mJob.mConditions.push_back(&task.promise().state);
-        task.promise().addWaitingJob(&mJob);
-      };
+      std::vector<std::atomic<PromiseState>*> jobConds;
+      auto nextJob = handle.promise().getThisJob();
+
+      auto setupTask = [&](auto&& task) { jobConds.push_back(&task.promise().state); };
       std::apply([&](auto&&... tuple) { (setupTask(tuple), ...); }, mTasks);
-      assert(mJob.mConditions.size() == std::tuple_size_v<TaskTupleTy>);
+
+      mWaitingCount = std::tuple_size_v<TaskTupleTy>;
+
+      auto addWaitingJob = [&](auto&& task) { task.promise().addWaitingJob(new CondJob(&mWaitingCount, nextJob)); };
+
+      std::apply([&](auto&&... tuple) { (addWaitingJob(tuple), ...); }, mTasks);
+
+      assert(jobConds.size() == std::tuple_size_v<TaskTupleTy>);
+
       auto runTask = [this](auto&& task) { mExecutor->enqueue(task.promise().getThisJob()); };
       std::apply([&](auto&&... tuple) { (runTask(tuple), ...); }, mTasks);
     }
     auto await_resume() const noexcept -> void {}
 
+    std::atomic_size_t mWaitingCount;
     Executor* mExecutor;
     TaskTupleTy mTasks;
-    CondJob mJob;
   };
 
   auto await_ready() const noexcept -> bool { return false; }
@@ -85,10 +90,10 @@ public:
 
   auto await_resume() const noexcept -> void {}
   template <TaskConcept... TasksTy>
-  [[nodiscard]] auto waitAll(TasksTy&&... tasks) -> Task<>
+  [[nodiscard]] auto waitAll(TasksTy&&... tasks) -> decltype(auto)
   {
     auto tasksTuple = std::make_tuple(std::forward<TasksTy>(tasks)...);
-    co_return co_await WaitAllAwaiter<std::tuple<TasksTy...>>(mExecutor.get(), std::move(tasksTuple));
+    return WaitAllAwaiter<std::tuple<TasksTy...>>(mExecutor.get(), std::move(tasksTuple));
   }
 
 private:

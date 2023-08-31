@@ -22,31 +22,19 @@ enum class PromiseState : std::uint8_t {
 };
 
 struct CondJob : WorkerJob {
-  CondJob(std::vector<std::atomic<PromiseState>*> mConditions, std::coroutine_handle<> handle)
-      : WorkerJob(&CondJob::run), mConditions(std::move(mConditions)), mHandle(handle)
-  {
-  }
+  CondJob(std::atomic_size_t* count, WorkerJob* nextJob) : mCount(count), mNextJob(nextJob), WorkerJob(&CondJob::run) {}
+
   static auto run(WorkerJob* job) noexcept -> void
   {
     auto condJob = static_cast<CondJob*>(job);
-    if (condJob->allDone()) {
-      if (condJob->mAllDone.exchange(true) == false) {
-        condJob->mHandle.resume(); // only one thread can resume
-      }
+    auto count = condJob->mCount->fetch_sub(1);
+    if (count == 1) {
+      Proactor::get().execute(condJob->mNextJob);
     }
+    delete condJob;
   }
-  auto allDone() -> bool
-  {
-    for (auto& cond : mConditions) {
-      if (*cond != PromiseState::Final) {
-        return false;
-      }
-    }
-    return true;
-  }
-  std::atomic_bool mAllDone;
-  std::coroutine_handle<> mHandle;
-  std::vector<std::atomic<PromiseState>*> mConditions;
+  std::atomic_size_t* mCount;
+  WorkerJob* mNextJob;
 };
 
 struct PromiseBase {

@@ -30,7 +30,6 @@ auto Worker::loop() -> void
   while (true) {
     auto currState = mState.load(std::memory_order_relaxed);
     if (currState == State::Waiting) {
-      ::puts("waiting...");
       auto wakeupJob = mProactor->wait(mNofiying);
       auto r = mState.compare_exchange_strong(currState, State::Executing, std::memory_order_acq_rel);
       if (wakeupJob != nullptr) {
@@ -64,16 +63,15 @@ auto Worker::processTasks() -> void
   mQueueMt.lock();
   auto jobs = std::move(mTaskQueue);
   mQueueMt.unlock();
-  ::puts("processTasks...");
   // FIXME: receve a job with next point to it self
   while (auto job = jobs.popFront()) {
     job->run(job);
   }
-  ::puts("processTasks...done");
 }
 auto Worker::pushTask(WorkerJob* job) -> void
 {
   mQueueMt.lock();
+  assert(job->next == nullptr);
   mTaskQueue.pushBack(job);
   mQueueMt.unlock();
 }
@@ -83,12 +81,14 @@ auto Worker::tryPushTask(WorkerJob* job) -> bool
   if (!lk.owns_lock()) {
     return false;
   };
+  assert(job->next == nullptr);
   mTaskQueue.pushBack(job);
   return true;
 }
 
 auto Worker::pushTask(WorkerJobQueue&& jobs) -> void
 {
+  assert(jobs.back() == nullptr);
   mQueueMt.lock();
   mTaskQueue.append(std::move(jobs));
   mQueueMt.unlock();
@@ -144,10 +144,7 @@ auto MtExecutor::join() noexcept -> void
   }
 }
 
-auto MtExecutor::enqueue(WorkerJob* job) noexcept -> void
-{
-  enqueuImpl(job);
-}
+auto MtExecutor::enqueue(WorkerJob* job) noexcept -> void { enqueuImpl(job); }
 
 auto MtExecutor::enqueue(WorkerJobQueue&& queue, std::size_t count) noexcept -> void
 {

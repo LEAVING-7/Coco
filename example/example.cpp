@@ -74,7 +74,7 @@ auto taskD() -> Task<double>
 auto main() -> int
 {
   auto k = runtime.block([&]() -> Task<int> {
-    co_await runtime.waitAll(taskC(), taskA(), taskD());
+    co_await runtime.waitAll(taskA(), taskD(), taskC());
     // puts("--hello world");
     // co_await runtime.waitAll(taskB());
     co_return 233;
