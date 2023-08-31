@@ -88,14 +88,14 @@ auto Worker::tryPushTask(WorkerJob* job) -> bool
   return true;
 }
 
-auto Worker::pushTask(WokerJobQueue&& jobs) -> void
+auto Worker::pushTask(WorkerJobQueue&& jobs) -> void
 {
   mQueueMt.lock();
   mTaskQueue.append(std::move(jobs));
   mQueueMt.unlock();
 }
 
-auto Worker::tryPushTask(WokerJobQueue&& jobs) -> bool
+auto Worker::tryPushTask(WorkerJobQueue&& jobs) -> bool
 {
   std::unique_lock lk(mQueueMt, std::try_to_lock);
   if (!lk.owns_lock()) {
@@ -145,21 +145,17 @@ auto MtExecutor::join() noexcept -> void
   }
 }
 
-auto MtExecutor::enqueue(std::coroutine_handle<> handle) noexcept -> void
-{
-  auto job = new CoroJob(handle, true);
-  enqueue(job);
-}
+auto MtExecutor::enqueue(WorkerJob* job) noexcept -> void { enqueuImpl(job); }
 
-auto MtExecutor::enqueue(WokerJobQueue&& queue, std::size_t count) noexcept -> void
+auto MtExecutor::enqueue(WorkerJobQueue&& queue, std::size_t count) noexcept -> void
 {
   if (count == 0) {
-    enqueue(std::move(queue));
+    enqueuImpl(std::move(queue));
   } else {
     while (!queue.empty()) {
       auto const perThread = count / mThreadCount;
       auto perThreadJobs = queue.popFront(perThread);
-      enqueue(std::move(perThreadJobs));
+      enqueuImpl(std::move(perThreadJobs));
     }
   }
 }

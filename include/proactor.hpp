@@ -6,6 +6,7 @@
 #include "uring.hpp"
 #include "worker_job.hpp"
 
+#include <set>
 #include <thread>
 
 namespace coco {
@@ -21,12 +22,12 @@ public:
   ~Proactor() = default;
 
   auto attachExecutor(Executor* executor) noexcept -> void { mExecutor = executor; }
-  auto execute(WokerJobQueue&& queue) noexcept -> void { mExecutor->enqueue(std::move(queue), 0); }
-  auto execute(WokerJobQueue&& queue, std::size_t count) noexcept -> void
+  auto execute(WorkerJobQueue&& queue) noexcept -> void { mExecutor->enqueue(std::move(queue), 0); }
+  auto execute(WorkerJobQueue&& queue, std::size_t count) noexcept -> void
   {
     mExecutor->enqueue(std::move(queue), count);
   }
-  auto execute(std::coroutine_handle<> handle) noexcept -> void { mExecutor->enqueue(handle); }
+  auto execute(WorkerJob* job) noexcept -> void { mExecutor->enqueue(job); }
   auto addTimer(Instant time, WorkerJob* job) noexcept -> void { mTimerManager.addTimer(time, job); }
   auto deleteTimer(std::size_t jobId) noexcept -> void { mTimerManager.deleteTimer(jobId); }
 
@@ -35,7 +36,7 @@ public:
   {
     auto [jobs, count] = mTimerManager.processTimers();
     while (auto job = jobs.popFront()) {
-      ::puts("pop job");
+      ::puts("pop timer job");
       job->run(job);
     }
     auto future = mTimerManager.nextInstant();
@@ -45,7 +46,7 @@ public:
     if (e == std::errc::stream_timeout) {
       // timeout
     } else if (e != std::errc(0)) {
-      assert(false); // error occured
+      // assert(false); // error occured
     } else {
       assert(cqe != nullptr);
       if (cqe->flags & IORING_CQE_F_MORE) {

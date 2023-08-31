@@ -1,9 +1,9 @@
 #pragma once
 #include "preclude.hpp"
 
-#include "worker_job.hpp"
 #include "util/heap.hpp"
 #include "util/lockfree_queue.hpp"
+#include "worker_job.hpp"
 
 #include <chrono>
 #include <queue>
@@ -41,7 +41,7 @@ public:
   // MT-Safe
   auto deleteTimer(std::size_t jobId) noexcept -> void;
   auto nextInstant() const noexcept -> Instant;
-  auto processTimers() -> std::pair<WokerJobQueue, std::size_t>;
+  auto processTimers() -> std::pair<WorkerJobQueue, std::size_t>;
 
 private:
   std::mutex mPendingJobsMt;

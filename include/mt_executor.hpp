@@ -70,14 +70,13 @@ public:
 
 private:
   auto processTasks() -> void;
-
   // auto pushTaskLockFree(WorkerJob* job) -> void { mLockFreeQueue.pushFront(job); }
 
   auto pushTask(WorkerJob* job) -> void;
   auto tryPushTask(WorkerJob* job) -> bool;
 
-  auto pushTask(WokerJobQueue&& jobs) -> void;
-  auto tryPushTask(WokerJobQueue&& jobs) -> bool;
+  auto pushTask(WorkerJobQueue&& jobs) -> void;
+  auto tryPushTask(WorkerJobQueue&& jobs) -> bool;
 
   // private:
   enum class State {
@@ -104,12 +103,13 @@ public:
   }
   auto requestStop() noexcept -> void;
   auto join() noexcept -> void;
-  auto enqueue(std::coroutine_handle<> handle) noexcept -> void override;
-  auto enqueue(WokerJobQueue&& queue, std::size_t count) noexcept -> void override;
+  auto enqueue(WorkerJob* job) noexcept -> void override;
+  auto enqueue(WorkerJobQueue&& queue, std::size_t count) noexcept -> void override;
 
+private:
   template <typename T>
-    requires std::is_same_v<WokerJobQueue, T> || std::is_base_of_v<WorkerJob, std::remove_pointer_t<T>>
-                                               auto enqueue(T task) noexcept -> void // NOLINT
+    requires std::is_same_v<WorkerJobQueue, T> || std::is_base_of_v<WorkerJob, std::remove_pointer_t<T>>
+                                                auto enqueuImpl(T task) noexcept -> void // NOLINT
   {
     auto startIdx = mNextWorker.fetch_add(1, std::memory_order_relaxed) % mThreadCount;
     for (std::uint32_t i = 0; i < mThreadCount; i++) {
@@ -122,7 +122,6 @@ public:
     assert(r);
   }
 
-private:
   const std::uint32_t mThreadCount;
   std::atomic_uint32_t mNextWorker = 0;
   std::vector<std::thread> mThreads;

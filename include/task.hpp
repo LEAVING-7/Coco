@@ -10,18 +10,49 @@
 #include <variant>
 
 namespace coco {
+
 template <typename T = void>
 struct Task;
 
 enum class PromiseState : std::uint8_t {
   Inital = 0,
-  NeedNotify = 1,
+  NeedNotifyAtomic = 1,
+  NeedNotifyProactor = 2,
   Final = 2,
 };
 
+struct CondJob : WorkerJob {
+  CondJob(std::vector<std::atomic<PromiseState>*> mConditions, std::coroutine_handle<> handle)
+      : WorkerJob(&CondJob::run), mConditions(std::move(mConditions)), mHandle(handle)
+  {
+  }
+  static auto run(WorkerJob* job) noexcept -> void
+  {
+    auto condJob = static_cast<CondJob*>(job);
+    if (condJob->allDone()) {
+      if (condJob->mAllDone.exchange(true) == false) {
+        condJob->mHandle.resume();
+        ::puts("all finished");
+      }
+    }
+  }
+  auto allDone() -> bool
+  {
+    for (auto& cond : mConditions) {
+      if (*cond != PromiseState::Final) {
+        return false;
+      }
+    }
+    return true;
+  }
+  std::atomic_bool mAllDone;
+  std::coroutine_handle<> mHandle;
+  std::vector<std::atomic<PromiseState>*> mConditions;
+};
+
 struct PromiseBase {
-  std::coroutine_handle<> continueHandle;
   std::exception_ptr exceptionPtr;
+  WorkerJobQueue waitingLists;
 
   struct FinalAwaiter {
     auto await_ready() const noexcept -> bool { return false; }
@@ -31,12 +62,18 @@ struct PromiseBase {
       assert(handle.done() && "handle should done here");
       auto& promise = handle.promise();
 
-      if (promise.state.exchange(PromiseState::Final) == PromiseState::NeedNotify) {
+      auto state = promise.state.exchange(PromiseState::Final);
+      if (state == PromiseState::NeedNotifyAtomic) {
         promise.state.notify_one();
       }
 
       if (promise.continueHandle) {
-        Proactor::get().execute(promise.continueHandle);
+        Proactor::get().execute(new CoroJob(promise.continueHandle, CoroJob::runDelete));
+      }
+
+      auto jobs = std::move(promise.waitingLists);
+      while (auto job = jobs.popFront()) {
+        job->run(job);
       }
     }
     auto await_resume() noexcept -> void {}
@@ -45,7 +82,8 @@ struct PromiseBase {
   auto initial_suspend() noexcept -> std::suspend_always { return {}; }
   auto final_suspend() noexcept -> FinalAwaiter { return {}; }
   auto unhandled_exception() noexcept -> void { exceptionPtr = std::current_exception(); }
-  auto setContinue(std::coroutine_handle<> continuation) noexcept -> void { continueHandle = continuation; }
+  // auto setContinue(std::coroutine_handle<> continuation) noexcept -> void { continueHandle = continuation; }
+  auto addWaitingJob(WorkerJob* job) noexcept -> void { waitingLists.pushBack(job); }
 };
 
 template <typename T>
@@ -85,11 +123,15 @@ struct Promise<void> : PromiseBase {
     return;
   }
 };
+
 template <typename T>
 constexpr bool IsTask = false;
 
 template <typename T>
 constexpr bool IsTask<Task<T>> = true;
+
+template <typename T>
+concept TaskConcept = IsTask<T>;
 
 template <typename T>
 class Task {
@@ -120,12 +162,25 @@ public:
   auto promise() && -> promise_type&& { return std::move(mHandle.promise()); }
 
   auto take() noexcept -> coroutine_handle_type { return std::exchange(mHandle, nullptr); }
+
+  struct AwaiterBase1 {
+    auto await_ready() const noexcept -> bool { return false; }
+    template<typename Promise>
+    auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
+    {
+      // mHandle.promise().setContinue(handle);
+      // Proactor::get().execute(mHandle);
+    }
+    auto await_resume() -> decltype(auto) { return mHandle.promise().result(); }
+    coroutine_handle_type mHandle;
+  };
+  
   auto operator co_await() const& noexcept
   {
     struct Awaiter {
       std::coroutine_handle<promise_type> callee;
       auto await_ready() -> bool { return false; }
-      auto await_suspend(std::coroutine_handle<> caller) -> void
+      auto await_suspend(auto caller) -> void
       {
         callee.promise().setContinue(caller);
         Proactor::get().execute(callee);
@@ -140,10 +195,10 @@ public:
     struct Awaiter {
       coroutine_handle_type callee;
       auto await_ready() -> bool { return false; }
-      auto await_suspend(std::coroutine_handle<> caller) -> void
+      auto await_suspend(auto caller) -> void
       {
         callee.promise().setContinue(caller);
-        Proactor::get().execute(callee);
+        Proactor::get().execute(new CoroJob(callee, CoroJob::runDelete));
       }
       auto await_resume() -> decltype(auto) { return std::move(callee.promise()).result(); }
     };

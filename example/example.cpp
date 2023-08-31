@@ -39,6 +39,7 @@ int main()
 
 #include "runtime.hpp"
 using namespace coco;
+auto runtime = Runtime(1);
 
 auto taskA() -> Task<int>
 {
@@ -46,6 +47,12 @@ auto taskA() -> Task<int>
   co_return 233;
 }
 
+auto taskC() -> Task<>
+{
+  co_await runtime.sleep(1s);
+  ::puts("taskC");
+  co_return;
+}
 auto taskB() -> Task<double>
 {
   auto now = std::chrono::steady_clock::now();
@@ -57,17 +64,10 @@ auto taskB() -> Task<double>
   // 39.761779s for now
   co_return 1.233;
 }
-
 auto main() -> int
 {
-  auto runtime = Runtime(8);
-
   auto k = runtime.block([&]() -> Task<int> {
-    int a = co_await taskA();
-    for (int i = 0; i < 100; i++) {
-      co_await runtime.sleep(100ms);
-      co_await taskA();
-    }
+    co_await runtime.waitAll(taskA(), taskC());
     // double b = co_await taskB();
     // printf("%d %f\n", a, b);
     puts("--hello world");

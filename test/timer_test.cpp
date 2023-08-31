@@ -2,7 +2,7 @@
 
 #include "timer.hpp"
 struct MyJob : coco::WorkerJob {
-  MyJob(int i) : i(i), WorkerJob(&run, true) {}
+  MyJob(int i) : i(i), WorkerJob(&run) {}
   static auto run(coco::WorkerJob* job) noexcept -> void {}
   int i;
 };
