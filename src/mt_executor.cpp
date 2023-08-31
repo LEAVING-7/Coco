@@ -30,12 +30,13 @@ auto Worker::loop() -> void
   while (true) {
     auto currState = mState.load(std::memory_order_relaxed);
     if (currState == State::Waiting) {
-      processTasks();
+      ;
       auto wakeupJob = mProactor->wait(mNofiying);
-      if (wakeupJob != nullptr) {
-        pushTask(wakeupJob);
-      }
+      ;
       auto r = mState.compare_exchange_strong(currState, State::Executing, std::memory_order_acq_rel);
+      if (wakeupJob != nullptr) {
+        auto r = enqueue(wakeupJob);
+      }
       if (r == false) { // must be stop
         return;
       }
@@ -62,17 +63,16 @@ auto Worker::notify() -> void
 auto Worker::processTasks() -> void
 {
   mQueueMt.lock();
-  while (auto task = mTaskQueue.popFront()) {
-    mQueueMt.unlock();
-    auto fn = task->run;
-    fn(task);
-    mQueueMt.lock();
-  }
+  auto jobs = std::move(mTaskQueue);
   mQueueMt.unlock();
+  while (auto job = jobs.popFront()) {
+    job->run(job);
+  }
 }
 auto Worker::pushTask(WorkerJob* job) -> void
 {
   mQueueMt.lock();
+  ;
   mTaskQueue.pushBack(job);
   mQueueMt.unlock();
 }
@@ -80,8 +80,9 @@ auto Worker::tryPushTask(WorkerJob* job) -> bool
 {
   std::unique_lock lk(mQueueMt, std::try_to_lock);
   if (!lk.owns_lock()) {
+    ;
     return false;
-  }
+  };
   mTaskQueue.pushBack(job);
   return true;
 }

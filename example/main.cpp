@@ -42,17 +42,15 @@ using namespace coco;
 
 auto taskA() -> Task<int>
 {
-  putchar('.');
   co_return 233;
 }
 
 auto taskB() -> Task<double>
 {
   // FIXME: deadlock here
-  for (int i = 0; i < 10'000'000; i++) {
+  for (int i = 0; i < 1'000'000'000; i++) {
     co_await taskA();
-  }
-  ::puts("bunch of taskA fishished");
+  };
   co_return 1.233;
 }
 

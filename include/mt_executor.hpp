@@ -14,7 +14,6 @@
 using namespace std::chrono_literals;
 
 namespace coco {
-
 class Worker {
 public:
   Worker() noexcept = default;
@@ -26,6 +25,7 @@ public:
   template <typename T>
   [[nodiscard]] auto enqueue(T&& task) noexcept -> bool
   {
+
     auto state = mState.load(std::memory_order_relaxed);
     if (state == State::Stop) [[unlikely]] {
       return false;
@@ -43,15 +43,23 @@ public:
   template <typename T>
   [[nodiscard]] auto tryEnqeue(T&& task) noexcept -> bool
   {
+
     auto state = mState.load(std::memory_order_relaxed);
     if (state == State::Stop) [[unlikely]] {
       return false;
     } else if (state == State::Waiting) {
-      pushTask(std::move(task));
-      notify();
-      return true;
+
+      auto b = tryPushTask(std::move(task));
+      if (b) {
+        notify();
+      }
+      return b;
     } else if (state == State::Executing) {
-      return tryPushTask(std::move(task));
+      auto b = tryPushTask(std::move(task));
+      if (b) {
+        notify();
+      }
+      return b;
     }
     assert(0);
   }
@@ -69,7 +77,7 @@ private:
   auto pushTask(WokerJobQueue&& jobs) -> void;
   auto tryPushTask(WokerJobQueue&& jobs) -> bool;
 
-private:
+  // private:
   enum class State {
     Waiting,
     Executing,

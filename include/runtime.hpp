@@ -37,7 +37,6 @@ public:
 
     mExecutor.get()->enqueue(task.handle());
     while (state != coco::PromiseState::Final) {
-      ::printf("waiting state: %d\n", std::uint8_t(state.load()));
       state.wait(coco::PromiseState::NeedNotify);
     }
     auto result = std::move(task.promise()).result();

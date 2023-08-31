@@ -1,9 +1,12 @@
 #pragma once
 #include "preclude.hpp"
 
+#include "defer.hpp"
 #include "timer.hpp"
 #include "uring.hpp"
 #include "worker_job.hpp"
+
+#include <thread>
 
 namespace coco {
 class Proactor {
@@ -27,25 +30,31 @@ public:
   auto addTimer(Instant time, WorkerJob* job) noexcept -> void { mTimerManager.addTimer(time, job); }
   auto deleteTimer(std::size_t jobId) noexcept -> void { mTimerManager.deleteTimer(jobId); }
 
-  auto notify() -> void { mUring.notify(); }
+  auto notify() -> void
+  {
+    std::scoped_lock lk(mUringNotifyMt);
+    mUring.notify();
+  }
   auto wait(std::atomic_bool& notifying) -> WorkerJob*
   {
+    // defer {  };
     auto [jobs, count] = mTimerManager.processTimers();
     execute(std::move(jobs));
     auto future = mTimerManager.nextInstant();
     auto duration = future - std::chrono::steady_clock::now();
-
     io_uring_cqe* cqe = nullptr;
-    auto e = mUring.submitWait(cqe, duration);
+    auto e = mUring.submitWait(cqe, std::chrono::seconds(5));
     if (e == std::errc::stream_timeout) {
       // time out
+      assert("timeout" && false);
     } else if (e != std::errc(0)) {
       // error occured
     } else {
       assert(cqe != nullptr);
       if (cqe->flags & IORING_CQE_F_MORE) {
         seen(cqe);
-        notifying = false;
+        notifying.store(false);
+        return nullptr;
       } else {
         seen(cqe);
         return (WorkerJob*)cqe->user_data;
@@ -69,6 +78,8 @@ public:
 private:
   Executor* mExecutor;
   TimerManager mTimerManager{64};
+
+  std::mutex mUringNotifyMt;
   IoUring mUring{};
 };
 } // namespace coco
