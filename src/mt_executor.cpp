@@ -30,6 +30,7 @@ auto Worker::loop() -> void
   while (true) {
     auto currState = mState.load(std::memory_order_relaxed);
     if (currState == State::Waiting) {
+      ::puts("waiting...");
       auto wakeupJob = mProactor->wait(mNofiying);
       auto r = mState.compare_exchange_strong(currState, State::Executing, std::memory_order_acq_rel);
       if (wakeupJob != nullptr) {
@@ -57,20 +58,18 @@ auto Worker::notify() -> void
     mProactor->notify();
     return;
   }
-  ::puts("notify failed");
 }
 auto Worker::processTasks() -> void
 {
   mQueueMt.lock();
   auto jobs = std::move(mTaskQueue);
   mQueueMt.unlock();
+  ::puts("processTasks...");
+  // FIXME: receve a job with next point to it self
   while (auto job = jobs.popFront()) {
     job->run(job);
   }
-  // auto jobs2 = mLockFreeQueue.popAll();
-  // while (auto job = jobs2.popFront()) {
-  //   job->run(job);
-  // }
+  ::puts("processTasks...done");
 }
 auto Worker::pushTask(WorkerJob* job) -> void
 {
@@ -145,7 +144,10 @@ auto MtExecutor::join() noexcept -> void
   }
 }
 
-auto MtExecutor::enqueue(WorkerJob* job) noexcept -> void { enqueuImpl(job); }
+auto MtExecutor::enqueue(WorkerJob* job) noexcept -> void
+{
+  enqueuImpl(job);
+}
 
 auto MtExecutor::enqueue(WorkerJobQueue&& queue, std::size_t count) noexcept -> void
 {

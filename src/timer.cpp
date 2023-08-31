@@ -53,6 +53,7 @@ auto TimerManager::processTimers() -> std::pair<WorkerJobQueue, std::size_t>
     }
     jobs.pushBack(job);
   }
+  ::puts("process timer finished");
   return {std::move(jobs), count};
 }
 } // namespace coco

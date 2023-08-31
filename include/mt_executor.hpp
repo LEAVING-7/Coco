@@ -25,7 +25,6 @@ public:
   template <typename T>
   [[nodiscard]] auto enqueue(T&& task) noexcept -> bool
   {
-    ::puts("enqueue");
     auto state = mState.load(std::memory_order_relaxed);
     if (state == State::Stop) [[unlikely]] {
       return false;

@@ -43,14 +43,14 @@ auto runtime = Runtime(1);
 
 auto taskA() -> Task<int>
 {
-  ::puts("taskA");
+  ::putchar('.');
   co_return 233;
 }
-
 auto taskC() -> Task<>
 {
-  co_await runtime.sleep(1s);
-  ::puts("taskC");
+  ::puts("begin Task C");
+  co_await runtime.sleep(2s);
+  ::puts("end Task C");
   co_return;
 }
 auto taskB() -> Task<double>
@@ -61,16 +61,22 @@ auto taskB() -> Task<double>
   };
   auto end = std::chrono::steady_clock::now();
   printf("time: %f\n", std::chrono::duration<double>(end - now).count());
-  // 39.761779s for now
+  // 4.761779s for one thread
   co_return 1.233;
 }
+
+auto taskD() -> Task<double>
+{
+  ::puts("Task D");
+  co_return 1.233;
+}
+
 auto main() -> int
 {
   auto k = runtime.block([&]() -> Task<int> {
-    co_await runtime.waitAll(taskA(), taskC());
-    // double b = co_await taskB();
-    // printf("%d %f\n", a, b);
-    puts("--hello world");
+    co_await runtime.waitAll(taskC(), taskA(), taskD());
+    // puts("--hello world");
+    // co_await runtime.waitAll(taskB());
     co_return 233;
   });
   printf("%d\n", k);

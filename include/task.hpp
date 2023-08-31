@@ -31,8 +31,7 @@ struct CondJob : WorkerJob {
     auto condJob = static_cast<CondJob*>(job);
     if (condJob->allDone()) {
       if (condJob->mAllDone.exchange(true) == false) {
-        condJob->mHandle.resume();
-        ::puts("all finished");
+        condJob->mHandle.resume(); // only one thread can resume
       }
     }
   }
@@ -51,8 +50,9 @@ struct CondJob : WorkerJob {
 };
 
 struct PromiseBase {
+  CoroJob currentJob{nullptr, &CoroJob::run};
+  WorkerJobQueue waitingLists; // TODO 8 bytes single linked list
   std::exception_ptr exceptionPtr;
-  WorkerJobQueue waitingLists;
 
   struct FinalAwaiter {
     auto await_ready() const noexcept -> bool { return false; }
@@ -67,14 +67,7 @@ struct PromiseBase {
         promise.state.notify_one();
       }
 
-      if (promise.continueHandle) {
-        Proactor::get().execute(new CoroJob(promise.continueHandle, CoroJob::runDelete));
-      }
-
-      auto jobs = std::move(promise.waitingLists);
-      while (auto job = jobs.popFront()) {
-        job->run(job);
-      }
+      Proactor::get().execute(std::move(promise.waitingLists));
     }
     auto await_resume() noexcept -> void {}
   };
@@ -82,8 +75,10 @@ struct PromiseBase {
   auto initial_suspend() noexcept -> std::suspend_always { return {}; }
   auto final_suspend() noexcept -> FinalAwaiter { return {}; }
   auto unhandled_exception() noexcept -> void { exceptionPtr = std::current_exception(); }
-  // auto setContinue(std::coroutine_handle<> continuation) noexcept -> void { continueHandle = continuation; }
+
+  auto setCoHandle(std::coroutine_handle<> handle) noexcept -> void { currentJob.handle = handle; }
   auto addWaitingJob(WorkerJob* job) noexcept -> void { waitingLists.pushBack(job); }
+  auto getThisJob() noexcept -> WorkerJob* { return &currentJob; }
 };
 
 template <typename T>
@@ -141,7 +136,11 @@ public:
   using value_type = T;
 
   Task() noexcept = default;
-  explicit Task(coroutine_handle_type handle) noexcept : mHandle(handle) {}
+  explicit Task(coroutine_handle_type handle) noexcept : mHandle(handle)
+  {
+    assert(mHandle != nullptr);
+    mHandle.promise().setCoHandle(mHandle);
+  }
   Task(Task const&) = delete;
   Task(Task&& other) noexcept : mHandle(std::exchange(other.mHandle, nullptr)) {}
   ~Task() noexcept { destroy(); }
@@ -163,44 +162,29 @@ public:
 
   auto take() noexcept -> coroutine_handle_type { return std::exchange(mHandle, nullptr); }
 
-  struct AwaiterBase1 {
+  struct AwaiterBase {
     auto await_ready() const noexcept -> bool { return false; }
-    template<typename Promise>
+    template <typename Promise>
     auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
     {
-      // mHandle.promise().setContinue(handle);
-      // Proactor::get().execute(mHandle);
+      mHandle.promise().addWaitingJob(handle.promise().getThisJob());
+      Proactor::get().execute(mHandle.promise().getThisJob());
     }
-    auto await_resume() -> decltype(auto) { return mHandle.promise().result(); }
     coroutine_handle_type mHandle;
   };
-  
+
   auto operator co_await() const& noexcept
   {
-    struct Awaiter {
-      std::coroutine_handle<promise_type> callee;
-      auto await_ready() -> bool { return false; }
-      auto await_suspend(auto caller) -> void
-      {
-        callee.promise().setContinue(caller);
-        Proactor::get().execute(callee);
-      }
-      auto await_resume() -> decltype(auto) { return callee.promise().result(); }
+    struct Awaiter : AwaiterBase {
+      auto await_resume() -> decltype(auto) { return this->mHandle.promise().result(); }
     };
     return Awaiter{mHandle};
   }
 
   auto operator co_await() && noexcept
   {
-    struct Awaiter {
-      coroutine_handle_type callee;
-      auto await_ready() -> bool { return false; }
-      auto await_suspend(auto caller) -> void
-      {
-        callee.promise().setContinue(caller);
-        Proactor::get().execute(new CoroJob(callee, CoroJob::runDelete));
-      }
-      auto await_resume() -> decltype(auto) { return std::move(callee.promise()).result(); }
+    struct Awaiter : AwaiterBase {
+      auto await_resume() -> decltype(auto) { return std::move(this->mHandle.promise()).result(); }
     };
     return Awaiter{mHandle};
   }

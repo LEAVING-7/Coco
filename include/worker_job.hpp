@@ -26,7 +26,7 @@ using WorkerJobQueue = Queue<&WorkerJob::next>;
 // TODO: need better implementation
 struct CoroJob : WorkerJob {
   CoroJob(std::coroutine_handle<> handle, WorkerJob::fn_type fn) noexcept : handle(handle), WorkerJob(fn) {}
-  static auto runNoDelete(WorkerJob* job) noexcept -> void
+  static auto run(WorkerJob* job) noexcept -> void
   {
     auto coroJob = static_cast<CoroJob*>(job);
     coroJob->handle.resume();

@@ -36,7 +36,6 @@ public:
   {
     auto [jobs, count] = mTimerManager.processTimers();
     while (auto job = jobs.popFront()) {
-      ::puts("pop timer job");
       job->run(job);
     }
     auto future = mTimerManager.nextInstant();
@@ -57,29 +56,6 @@ public:
       }
     }
     mUring.seen(cqe);
-
-    /*     auto e = mUring.submitWait(1);
-        if (e != std::errc(0)) {
-          // error occured
-          assert(false);
-        }
-        io_uring_cqe* cqe = nullptr;
-        std::uint32_t head, completed = 0;
-        io_uring_for_each_cqe(mUring.uring(), head, cqe)
-        {
-          completed++;
-          assert(cqe != nullptr);
-          if (cqe->flags & IORING_CQE_F_MORE) {
-            ::puts("more");
-            notifying.store(false);
-          } else {
-            auto job = (WorkerJob*)cqe->user_data;
-            job->run(job);
-          }
-        }
-        if (completed) {
-          mUring.advance(completed);
-        } */
     return nullptr;
   }
 

@@ -6,18 +6,18 @@
 
 namespace coco {
 class Runtime {
+
   struct SleepAwaiter {
-    SleepAwaiter(Duration duration) : mDuration(duration), mJob(nullptr, &CoroJob::runNoDelete) {}
+    SleepAwaiter(Duration duration) : mDuration(duration) {}
     auto await_ready() const noexcept -> bool { return false; }
-    auto await_suspend(std::coroutine_handle<> handle) noexcept -> void
+    template <typename Promise>
+    auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
     {
-      mJob.handle = handle;
-      Proactor::get().addTimer(std::chrono::steady_clock::now() + mDuration, &mJob);
+      Proactor::get().addTimer(std::chrono::steady_clock::now() + mDuration, handle.promise().getThisJob());
     }
     auto await_resume() const noexcept -> void {}
 
   private:
-    CoroJob mJob;
     Duration mDuration;
   };
 
@@ -33,7 +33,7 @@ public:
 
     auto task = std::invoke(fn, std::forward<Args>(args)...);
     auto& state = task.promise().state;
-    CoroJob job(task.handle(), &CoroJob::runNoDelete);
+    CoroJob job(task.handle(), &CoroJob::run);
     state = coco::PromiseState::NeedNotifyAtomic;
 
     mExecutor.get()->enqueue(&job);
@@ -46,88 +46,49 @@ public:
   }
 
   template <typename Rep, typename Per>
-  [[nodiscard]] auto sleep(std::chrono::duration<Rep, Per> duration) -> SleepAwaiter
+  [[nodiscard]] auto sleep(std::chrono::duration<Rep, Per> duration) -> Task<>
   {
     auto sleepTime = std::chrono::duration_cast<coco::Duration>(duration);
-    return SleepAwaiter(sleepTime);
+    co_return co_await SleepAwaiter(sleepTime);
   }
 
-  [[nodiscard]] auto waitAll(Task<int> taska, Task<> taskb) -> Task<>
-  {
-    struct WaitAllAwaiter {
-      WaitAllAwaiter(Task<int> taska, Task<> taskb, Executor* exe)
-          : mTa(std::move(taska)), mTb(std::move(taskb)), mJob({}, {}), mExecutor(exe)
-      {
-      }
-      auto await_ready() const noexcept -> bool { return false; }
-      auto await_suspend(std::coroutine_handle<> handle) noexcept -> void
-      {
-        mJob.mHandle = handle;
-        mJob.mConditions.push_back(&mTa.promise().state);
-        mJob.mConditions.push_back(&mTb.promise().state);
-        mTa.promise().waitingLists.pushBack(&mJob);
-        mTb.promise().waitingLists.pushBack(&mJob);
+  template <typename TaskTupleTy>
+  struct WaitAllAwaiter {
+    WaitAllAwaiter(Executor* executor, TaskTupleTy&& tasks)
+        : mJob({}, {}), mExecutor(executor), mTasks(std::move(tasks))
+    {
+    }
 
-        auto ha = mTa.handle();
-        auto hb = mTb.handle();
-
-        mExecutor->enqueue(new CoroJob(ha, &CoroJob::runDelete));
-        mExecutor->enqueue(new CoroJob(hb, &CoroJob::runDelete));
-      }
-      auto await_resume() const noexcept -> void {}
-
-    private:
-      Task<int> mTa;
-      Task<> mTb;
-      Executor* mExecutor;
-      CondJob mJob;
-    };
-    co_await WaitAllAwaiter(std::move(taska), std::move(taskb), mExecutor.get());
-    co_return;
-  }
-
-  template <TaskConcept... Tasks>
-  struct WaitAllAwaiter : std::tuple<Tasks...> {
-    WaitAllAwaiter(Executor* executor) : mJob({}, {}), mExecutor(executor) {}
     auto await_ready() const noexcept -> bool { return false; }
-    auto await_suspend(std::coroutine_handle<> handle) noexcept -> void
+    template <typename Promise>
+    auto await_suspend(std::coroutine_handle<Promise> handle) -> void
     {
       mJob.mHandle = handle;
-      auto setupTask = [this](auto& task) {
+      auto setupTask = [this](auto&& task) {
         mJob.mConditions.push_back(&task.promise().state);
-        task.promise().waitingLists.pushBack(&mJob);
+        task.promise().addWaitingJob(&mJob);
       };
-      std::apply([](auto const&... tuple) { (perTask(tuple), ...); }, *this);
-      auto runTask = [this](auto& task) { mExecutor->enqueue(new CoroJob(task.handle(), &CoroJob::runDelete)); };
-      std::apply([](auto const&... tuple) { (runTask(tuple), ...); }, *this);
+      std::apply([&](auto&&... tuple) { (setupTask(tuple), ...); }, mTasks);
+      assert(mJob.mConditions.size() == std::tuple_size_v<TaskTupleTy>);
+      auto runTask = [this](auto&& task) { mExecutor->enqueue(task.promise().getThisJob()); };
+      std::apply([&](auto&&... tuple) { (runTask(tuple), ...); }, mTasks);
     }
     auto await_resume() const noexcept -> void {}
-    CondJob mJob;
+
     Executor* mExecutor;
+    TaskTupleTy mTasks;
+    CondJob mJob;
   };
 
-  template <typename T>
-  struct WaitAllAwaiter2 {
-    template <typename... Tasks>
-    WaitAllAwaiter2(Executor* executor, Tasks&&... tasks)
-        : mTasks(std::forward_as_tuple(tasks...)), mJob({}, {}), mExecutor(executor)
-    {
-    }
-
-    T mTasks;
-    CondJob mJob;
-    Executor* mExecutor;
-  };
   auto await_ready() const noexcept -> bool { return false; }
-  auto await_suspend(std::coroutine_handle<> handle) noexcept -> void {
-
-  }
+  auto await_suspend(std::coroutine_handle<> handle) noexcept -> void {}
 
   auto await_resume() const noexcept -> void {}
-  template <TaskConcept... Args>
-  [[nodiscard]] auto waitAll(Args&&... args) -> Task<>
+  template <TaskConcept... TasksTy>
+  [[nodiscard]] auto waitAll(TasksTy&&... tasks) -> Task<>
   {
-    // co_return co_await WaitAllAwaiter(, mExecutor.get());
+    auto tasksTuple = std::make_tuple(std::forward<TasksTy>(tasks)...);
+    co_return co_await WaitAllAwaiter<std::tuple<TasksTy...>>(mExecutor.get(), std::move(tasksTuple));
   }
 
 private:
