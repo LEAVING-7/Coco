@@ -3,7 +3,7 @@
 
 #include <atomic>
 
-namespace coco {
+namespace coco::util {
 template <auto next>
 class AtomicQueue;
 template <typename Item, Item* Item::*next>
@@ -29,4 +29,4 @@ public:
 private:
   atomic_node_pointer mHead{nullptr};
 };
-} // namespace coco
+} // namespace coco::util

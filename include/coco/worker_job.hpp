@@ -9,7 +9,7 @@ namespace coco {
 inline auto genJobId() -> std::size_t
 {
   static std::atomic<std::size_t> id = 0;
-  return id++;
+  return id.fetch_add(1, std::memory_order_relaxed);
 }
 
 struct WorkerJob {
@@ -21,7 +21,7 @@ struct WorkerJob {
   std::size_t id;
 };
 
-using WorkerJobQueue = Queue<&WorkerJob::next>;
+using WorkerJobQueue = util::Queue<&WorkerJob::next>;
 
 // TODO: need better implementation
 struct CoroJob : WorkerJob {

@@ -41,6 +41,8 @@ private:
 };
 
 struct SocketAddr {
+  SocketAddr(SocketAddrV4 addr) noexcept : mV4{addr} {}
+
   auto toV4() const noexcept -> sockaddr_in
   {
     auto addr = sockaddr_in{};

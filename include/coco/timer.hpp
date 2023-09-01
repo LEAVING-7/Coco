@@ -47,6 +47,6 @@ private:
   std::mutex mPendingJobsMt;
   std::queue<TimerOp> mPendingJobs;
   std::unordered_set<std::size_t> mDeleted;
-  Heap<TimerOp, 4> mTimers;
+  util::Heap<TimerOp, 4> mTimers;
 };
 } // namespace coco

@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace coco {
+namespace coco::util {
 template <typename T, size_t N, typename P = std::less<T>>
 class Heap {
 public:

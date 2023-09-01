@@ -1,9 +1,11 @@
+#pragma once
 #include <atomic>
 #include <cstdint>
 #include <memory>
 #include <new>
 #include <utility>
 
+namespace coco::util {
 template <typename T> struct MakeIntr;
 template <typename T> struct EnableIntrFromThis;
 template <typename T> struct ControlBlock {
@@ -99,3 +101,5 @@ template <class T> struct MakeIntr {
 };
 
 template <typename T> inline constexpr MakeIntr<T> makeIntr{};
+
+}

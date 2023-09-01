@@ -86,7 +86,7 @@ private:
 
   coco::Proactor* mProactor = nullptr;
 
-  Queue<&WorkerJob::next> mTaskQueue;
+  util::Queue<&WorkerJob::next> mTaskQueue;
   std::mutex mQueueMt;
   std::atomic<State> mState;
   std::atomic_bool mNofiying = false;

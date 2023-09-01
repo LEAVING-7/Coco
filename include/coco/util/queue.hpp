@@ -4,7 +4,7 @@
 #include <mutex>
 #include <utility>
 
-namespace coco {
+namespace coco::util {
 template <auto Next>
 class Queue;
 template <typename Item, Item* Item::*next>
