@@ -44,7 +44,7 @@ public:
 
   template <typename F, typename... Args>
     requires std::invocable<F, Args...>
-  auto block(F&& fn, Args&&... args) -> decltype(auto)
+  auto block(F&& fn, Args&&... args) -> auto
   {
     using result_t = std::invoke_result_t<F, Args...>;
     static_assert(coco::IsTask<result_t>, "block function must return a task");
@@ -116,6 +116,7 @@ public:
     return WaitNAwaiter<TasksTuple>(n, mExecutor.get(), std::move(tuple));
   }
 
+  // FIXME: this function is not correct
   template <TaskConcept... TasksTy>
   [[nodiscard]] constexpr auto waitAny(TasksTy&&... tasks) -> decltype(auto)
   {
@@ -127,14 +128,14 @@ public:
     JoinAwaiter(std::atomic<WorkerJob*>* done) : mDone(done) {}
     auto await_ready() const noexcept -> bool { return false; }
     template <typename Promise>
-    auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
+    auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> bool
     {
       auto job = handle.promise().getThisJob();
       WorkerJob* expected = &emptyJob;
       if (mDone->compare_exchange_strong(expected, job)) {
-        return;
+        return true;
       } else {
-        return;
+        return false;
       }
     }
     auto await_resume() const noexcept -> void {}

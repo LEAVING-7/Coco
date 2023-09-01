@@ -18,7 +18,8 @@ enum class PromiseState : std::uint8_t {
   Inital = 0,
   NeedNotifyAtomic = 1,
   NeedDetach = 2,
-  Final = 3,
+  NeedCancel = 3,
+  Final,
 };
 
 struct PromiseBase {
@@ -35,6 +36,20 @@ struct PromiseBase {
       assert(handle.done() && "handle should done here");
       auto& promise = handle.promise();
 
+      ::printf("FinalAwaiter::await_suspend %lu\n", promise.currentJob.id);
+      auto state = promise.state.exchange(PromiseState::Final);
+      if (state == PromiseState::NeedNotifyAtomic) {
+        promise.state.notify_one();
+      } else if (state == PromiseState::NeedDetach) {
+        handle.destroy();
+      } /* else if (state == PromiseState::NeedCancel) {
+        // emtpy waiting list
+        while (!promise.waitingLists.empty()) {
+          auto job = promise.waitingLists.popFront();
+        }
+        return;
+      } */
+
       if (!promise.waitingLists.empty()) {
         Proactor::get().execute(std::move(promise.waitingLists));
       }
@@ -42,14 +57,9 @@ struct PromiseBase {
       if (promise.continueJob != nullptr) {
         auto continueJob = promise.continueJob->exchange(nullptr);
         if (continueJob != &emptyJob) {
+          ::printf("continueJob %lu\n", continueJob->id);
           Proactor::get().execute(continueJob);
         }
-      }
-      auto state = promise.state.exchange(PromiseState::Final);
-      if (state == PromiseState::NeedNotifyAtomic) {
-        promise.state.notify_one();
-      } else if (state == PromiseState::NeedDetach) {
-        handle.destroy();
       }
     }
     auto await_resume() noexcept -> void {}
@@ -70,6 +80,7 @@ struct Promise final : PromiseBase {
   T returnValue;
   std::atomic<PromiseState> state = PromiseState::Inital;
 
+  auto cancel() noexcept -> void { state.store(PromiseState::NeedCancel); }
   auto get_return_object() noexcept -> Task<T>;
   auto return_value(T value) noexcept -> void { std::construct_at(std::addressof(returnValue), std::move(value)); }
   auto result() const& -> T const&
@@ -92,6 +103,7 @@ template <>
 struct Promise<void> : PromiseBase {
   std::atomic<PromiseState> state = PromiseState::Inital;
 
+  auto cancel() noexcept -> void { state.store(PromiseState::NeedCancel); }
   auto get_return_object() noexcept -> Task<void>;
   auto return_void() noexcept -> void {}
   auto result() const -> void
@@ -177,6 +189,7 @@ private:
   auto destroy() -> void
   {
     if (auto handle = std::exchange(mHandle, nullptr); handle != nullptr) {
+      // handle.promise().cancel();
       handle.destroy();
     }
   }

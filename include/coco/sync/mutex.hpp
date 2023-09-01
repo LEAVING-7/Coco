@@ -76,10 +76,8 @@ auto MutexTryLockAwaiter::await_suspend(std::coroutine_handle<Promise> awaiting)
 {
   if (mMt.mHold.exchange(true, std::memory_order_acquire)) {
     mSuccess = false;
-    return false;
   } else {
     mSuccess = true;
-    return true;
   }
 }
 inline auto MutexTryLockAwaiter::await_resume() const noexcept -> bool { return mSuccess; }
