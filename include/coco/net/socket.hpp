@@ -1,12 +1,12 @@
 #pragma once
-#include "../preclude.hpp"
+#include "coco/__preclude.hpp"
 
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
 
-#include "socket_addr.hpp"
-#include "socket_awaiters.hpp"
+#include "coco/net/socket_addr.hpp"
+#include "coco/net/socket_awaiters.hpp"
 
 namespace coco::net {
 inline auto lastErrc() -> std::errc { return std::errc(errno); }

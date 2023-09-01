@@ -1,8 +1,8 @@
 #pragma once
-#include "../preclude.hpp"
+#include "coco/__preclude.hpp"
 
-#include "../task.hpp"
-#include "socket.hpp"
+#include "coco/task.hpp"
+#include "coco/net/socket.hpp"
 
 namespace coco::net {
 class TcpStream : private Socket {

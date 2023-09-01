@@ -1,5 +1,5 @@
 #pragma once
-#include "preclude.hpp"
+#include "coco/__preclude.hpp"
 
 #include "mt_executor.hpp"
 #include <functional>
@@ -59,8 +59,7 @@ public:
       ::puts("block on waiting...");
       state.wait(coco::PromiseState::NeedNotifyAtomic);
     }
-    auto result = std::move(task.promise()).result();
-    return result;
+    return std::move(task.promise()).result();
   }
 
   template <typename Rep, typename Per>
@@ -123,6 +122,23 @@ public:
   {
     auto tasksTuple = std::make_tuple(std::forward<TasksTy>(tasks)...);
     return WaitNAwaiter<std::tuple<TasksTy...>>(1, mExecutor.get(), std::move(tasksTuple));
+  }
+
+  template <typename TaskTy>
+  struct JoinHandle {
+    JoinHandle() {}
+    auto await_ready() const noexcept -> bool { return false; }
+    template <typename Promise>
+    auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
+    {
+    }
+    auto await_resume() const noexcept -> void {}
+    TaskTy mTask;
+  };
+
+  template <TaskConcept TaskTy>
+  [[nodiscard]] constexpr auto spawn(TaskTy&& task) -> decltype(auto)
+  {
   }
 
 private:

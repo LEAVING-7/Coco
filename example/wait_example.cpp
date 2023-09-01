@@ -29,4 +29,5 @@ auto main() -> int
     ::puts("all done");
     co_return 2333;
   });
+  assert(result == 2333);
 }

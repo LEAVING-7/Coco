@@ -1,9 +1,9 @@
 #pragma once
-#include "preclude.hpp"
+#include "coco/__preclude.hpp"
 
-#include "util/heap.hpp"
-#include "util/lockfree_queue.hpp"
-#include "worker_job.hpp"
+#include "coco/util/heap.hpp"
+#include "coco/util/lockfree_queue.hpp"
+#include "coco/worker_job.hpp"
 
 #include <chrono>
 #include <queue>

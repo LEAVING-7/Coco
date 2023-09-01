@@ -1,7 +1,7 @@
 #pragma once
-#include "../preclude.hpp"
-#include "../proactor.hpp"
-#include "socket_addr.hpp"
+#include "coco/__preclude.hpp"
+#include "coco/proactor.hpp"
+#include "coco/net/socket_addr.hpp"
 
 #include <coroutine>
 

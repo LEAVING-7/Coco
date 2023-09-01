@@ -1,10 +1,10 @@
 #pragma once
-#include "preclude.hpp"
+#include "coco/__preclude.hpp"
 
-#include "proactor.hpp"
-#include "task.hpp"
-#include "timer.hpp"
-#include "util/lockfree_queue.hpp"
+#include "coco/proactor.hpp"
+#include "coco/task.hpp"
+#include "coco/timer.hpp"
+#include "coco/util/lockfree_queue.hpp"
 
 #include <chrono>
 #include <coroutine>
