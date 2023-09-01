@@ -56,7 +56,6 @@ public:
 
     mExecutor.get()->enqueue(&job);
     while (state != coco::PromiseState::Final) {
-      ::puts("block on waiting...");
       state.wait(coco::PromiseState::NeedNotifyAtomic);
     }
     return std::move(task.promise()).result();
@@ -113,7 +112,7 @@ public:
   template <typename TasksTuple>
   [[nodiscard]] constexpr auto waitN(std::size_t n, TasksTuple&& tuple) -> decltype(auto)
   {
-    static_assert(n <= std::tuple_size_v<TasksTuple>, "n must be less than task count");
+    static_assert(n <= std::tuple_size_v<TasksTuple>, "n must be less than the task count");
     return WaitNAwaiter<TasksTuple>(n, mExecutor.get(), std::move(tuple));
   }
 
@@ -124,24 +123,72 @@ public:
     return WaitNAwaiter<std::tuple<TasksTy...>>(1, mExecutor.get(), std::move(tasksTuple));
   }
 
-  template <typename TaskTy>
-  struct JoinHandle {
-    JoinHandle() {}
+  struct [[nodiscard]] JoinAwaiter {
+    JoinAwaiter(std::atomic<WorkerJob*>* done) : mDone(done) {}
     auto await_ready() const noexcept -> bool { return false; }
     template <typename Promise>
     auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
     {
+      auto job = handle.promise().getThisJob();
+      WorkerJob* expected = &emptyJob;
+      if (mDone->compare_exchange_strong(expected, job)) {
+        return;
+      } else {
+        return;
+      }
     }
     auto await_resume() const noexcept -> void {}
+    std::atomic<WorkerJob*>* mDone;
+  };
+
+  template <typename TaskTy>
+  struct JoinHandle {
+    JoinHandle(TaskTy&& task) noexcept
+        : mTask(std::forward<TaskTy>(task)), mDone(std::make_unique<std::atomic<WorkerJob*>>(&emptyJob))
+    {
+      mTask.promise().addContinueJob(mDone.get());
+      Proactor::get().execute(mTask.promise().getThisJob());
+    }
+    JoinHandle(JoinHandle&&) noexcept = default;
+    ~JoinHandle() noexcept
+    {
+      if (mDone->load() != nullptr) {
+        assert("looks like you forget to call join()");
+      }
+    }
+    [[nodiscard]] auto join() -> decltype(auto) { return JoinAwaiter(mDone.get()); }
+
+    // atomic variable cannot be moved, so I use unique_ptr to wrap it
+    std::unique_ptr<std::atomic<WorkerJob*>> mDone;
     TaskTy mTask;
   };
 
   template <TaskConcept TaskTy>
   [[nodiscard]] constexpr auto spawn(TaskTy&& task) -> decltype(auto)
   {
+    return JoinHandle<TaskTy>(std::move(task));
+  }
+
+  // !!! task must be done before block() function returns, otherwise it will cause memory leak
+  template <TaskConcept TaskTy>
+  [[nodiscard]] constexpr auto spawnDetach(TaskTy&& task) -> decltype(auto)
+  {
+    auto& promise = task.promise();
+    promise.state.store(coco::PromiseState::NeedDetach);
+    Proactor::get().execute(promise.getThisJob());
+    [[maybe_unused]] auto handel = task.take();
   }
 
 private:
   std::shared_ptr<MtExecutor> mExecutor;
 };
 } // namespace coco
+
+/*
+  auto await_ready() const noexcept -> bool { return false; }
+  template <typename Promise>
+  auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
+  {
+  }
+  auto await_resume() const noexcept -> void {}
+*/

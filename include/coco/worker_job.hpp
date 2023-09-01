@@ -23,6 +23,9 @@ struct WorkerJob {
 
 using WorkerJobQueue = util::Queue<&WorkerJob::next>;
 
+inline auto emptyFn(WorkerJob*, void*) noexcept -> void { assert(false && "empty job should not be executed"); }
+inline WorkerJob emptyJob{emptyFn};
+
 // TODO: need better implementation
 struct CoroJob : WorkerJob {
   CoroJob(std::coroutine_handle<> handle, WorkerJob::fn_type fn) noexcept : handle(handle), WorkerJob(fn) {}

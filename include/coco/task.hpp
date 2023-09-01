@@ -17,13 +17,14 @@ struct Task;
 enum class PromiseState : std::uint8_t {
   Inital = 0,
   NeedNotifyAtomic = 1,
-  NeedNotifyProactor = 2,
-  Final = 2,
+  NeedDetach = 2,
+  Final = 3,
 };
 
 struct PromiseBase {
   CoroJob currentJob{nullptr, &CoroJob::run};
-  WorkerJobQueue waitingLists; // TODO 8 bytes single linked list
+  std::atomic<WorkerJob*>* continueJob{nullptr}; // used for join
+  WorkerJobQueue waitingLists;                   // TODO 8 bytes single linked list
   std::exception_ptr exceptionPtr;
 
   struct FinalAwaiter {
@@ -34,12 +35,22 @@ struct PromiseBase {
       assert(handle.done() && "handle should done here");
       auto& promise = handle.promise();
 
+      if (!promise.waitingLists.empty()) {
+        Proactor::get().execute(std::move(promise.waitingLists));
+      }
+
+      if (promise.continueJob != nullptr) {
+        auto continueJob = promise.continueJob->exchange(nullptr);
+        if (continueJob != &emptyJob) {
+          Proactor::get().execute(continueJob);
+        }
+      }
       auto state = promise.state.exchange(PromiseState::Final);
       if (state == PromiseState::NeedNotifyAtomic) {
         promise.state.notify_one();
+      } else if (state == PromiseState::NeedDetach) {
+        handle.destroy();
       }
-
-      Proactor::get().execute(std::move(promise.waitingLists));
     }
     auto await_resume() noexcept -> void {}
   };
@@ -51,6 +62,7 @@ struct PromiseBase {
   auto setCoHandle(std::coroutine_handle<> handle) noexcept -> void { currentJob.handle = handle; }
   auto addWaitingJob(WorkerJob* job) noexcept -> void { waitingLists.pushBack(job); }
   auto getThisJob() noexcept -> WorkerJob* { return &currentJob; }
+  auto addContinueJob(std::atomic<WorkerJob*>* job) noexcept -> void { continueJob = job; }
 };
 
 template <typename T>

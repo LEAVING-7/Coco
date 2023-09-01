@@ -43,6 +43,7 @@ public:
       return;
     }
     auto job = mWaitQueue.popFront();
+    job->next = nullptr;
     mQueueMt.unlock();
     Proactor::get().execute(job);
   }

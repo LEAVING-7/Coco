@@ -80,7 +80,12 @@ auto Worker::tryPushTask(WorkerJob* job) -> bool
   if (!lk.owns_lock()) {
     return false;
   };
-  assert(job->next == nullptr);
+
+  // assert(job->next == nullptr);
+  if (job->next != nullptr) {
+    ::printf("job id: %lu\n", job->id);
+    assert(false);
+  }
   mTaskQueue.pushBack(job);
   return true;
 }
