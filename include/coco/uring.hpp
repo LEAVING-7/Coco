@@ -19,12 +19,9 @@ class Worker;
 class WorkerJob;
 class MtExecutor;
 
-using BufView = std::span<std::byte const>;
-using BufSlice = std::span<std::byte>;
-
 constexpr std::uint32_t kIoUringQueueSize = 2048;
 using Token = void*;
-struct GlobalUringInfo {
+struct GlobalUringInfo { // not used yet
   static auto get() -> GlobalUringInfo&
   {
     static auto info = GlobalUringInfo();
@@ -49,22 +46,22 @@ public:
 
   IoUring(IoUring&& other) = delete;
   auto operator=(IoUring&& other) -> IoUring& = delete;
-  IoUring(IoUring const& other) = delete;
-  auto operator=(IoUring const& other) -> IoUring& = delete;
 
-  auto prepRecv(Token token, int fd, BufSlice buf, int flag = 0) -> void;
-  auto prepSend(Token token, int fd, BufView buf, int flag = 0) -> void;
-  auto prepAccept(Token token, int fd, sockaddr* addr, socklen_t* addrlen, int flags = 0) -> void;
-  auto prepCancel(int fd) -> void;
-  auto prepCancel(Token token) -> void;
-  auto prepClose(Token token, int fd) -> void;
+  auto prepRecv(Token token, int fd, std::span<std::byte> buf, int flag = 0) noexcept -> void;
+  auto prepSend(Token token, int fd, std::span<std::byte const> buf, int flag = 0) noexcept -> void;
+  auto prepAccept(Token token, int fd, sockaddr* addr, socklen_t* addrlen, int flags = 0) noexcept -> void;
+  auto prepConnect(Token token, int fd, sockaddr* addr, socklen_t addrlen) noexcept -> void;
 
-  auto seen(io_uring_cqe* cqe) -> void;
-  auto advance(std::uint32_t n) -> void;
-  auto submitWait(int waitn) -> std::errc;
+  auto prepCancel(int fd) noexcept -> void;
+  auto prepCancel(Token token) noexcept -> void;
+  auto prepClose(Token token, int fd) noexcept -> void;
+
+  auto seen(io_uring_cqe* cqe) noexcept -> void;
+  auto advance(std::uint32_t n) noexcept -> void;
+  auto submitWait(int waitn) noexcept -> std::errc;
 
   template <typename Rep, typename Ratio>
-  auto submitWait(io_uring_cqe*& cqe, std::chrono::duration<Rep, Ratio> duration) -> std::errc
+  auto submitWait(io_uring_cqe*& cqe, std::chrono::duration<Rep, Ratio> duration) noexcept -> std::errc
   {
     auto timeout = __kernel_timespec{};
     convertTime(duration, timeout);
@@ -72,7 +69,7 @@ public:
     return r < 0 ? std::errc(-r) : std::errc(0);
   }
   template <typename Rep, typename Ratio>
-  auto submitWait(std::span<io_uring_cqe*> cqes, std::chrono::duration<Rep, Ratio> duration) -> std::errc
+  auto submitWait(std::span<io_uring_cqe*> cqes, std::chrono::duration<Rep, Ratio> duration) noexcept -> std::errc
   {
     auto timeout = __kernel_timespec{};
     convertTime(duration, timeout);
@@ -81,7 +78,7 @@ public:
   }
 
   // TODO: I can't find a method to notify a uring without a real fd :(.
-  auto notify() -> void;
+  auto notify() noexcept -> void;
 
   auto uring() -> ::io_uring* { return &mUring; }
 

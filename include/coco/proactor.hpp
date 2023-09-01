@@ -36,7 +36,7 @@ public:
   {
     auto [jobs, count] = mTimerManager.processTimers();
     while (auto job = jobs.popFront()) {
-      job->run(job);
+      job->run(job, nullptr);
     }
     auto future = mTimerManager.nextInstant();
     auto duration = future - std::chrono::steady_clock::now();
@@ -52,18 +52,28 @@ public:
         notifying.store(false);
       } else {
         auto job = (WorkerJob*)cqe->user_data;
-        job->run(job);
+        job->run(job, &cqe->res);
       }
     }
     mUring.seen(cqe);
     return nullptr;
   }
 
-  auto prepRecv(Token token, int fd, BufSlice buf, int flag = 0) -> void { mUring.prepRecv(token, fd, buf, flag); }
-  auto prepSend(Token token, int fd, BufView buf, int flag = 0) -> void { mUring.prepSend(token, fd, buf, flag); }
+  auto prepRecv(Token token, int fd, std::span<std::byte> buf, int flag = 0) -> void
+  {
+    mUring.prepRecv(token, fd, buf, flag);
+  }
+  auto prepSend(Token token, int fd, std::span<std::byte const> buf, int flag = 0) -> void
+  {
+    mUring.prepSend(token, fd, buf, flag);
+  }
   auto prepAccept(Token token, int fd, sockaddr* addr, socklen_t* addrlen, int flags = 0) -> void
   {
     mUring.prepAccept(token, fd, addr, addrlen, flags);
+  }
+  auto prepConnect(Token token, int fd, sockaddr* addr, socklen_t addrlen) -> void
+  {
+    mUring.prepConnect(token, fd, addr, addrlen);
   }
   auto prepCancel(int fd) -> void { mUring.prepCancel(fd); }
   auto prepCancel(Token token) -> void { mUring.prepCancel(token); }

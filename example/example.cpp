@@ -1,4 +1,4 @@
-#include "mt_executor.hpp"
+#include "coco/mt_executor.hpp"
 #include <chrono>
 #include <cstdio>
 #include <thread>
@@ -37,7 +37,9 @@ int main()
   return 0;
 } */
 
-#include "runtime.hpp"
+#include "coco/runtime.hpp"
+#include "coco/net/net.hpp"
+
 using namespace coco;
 auto runtime = Runtime(1);
 
@@ -71,13 +73,30 @@ auto taskD() -> Task<double>
   co_return 1.233;
 }
 
-auto main() -> int
+auto main0() -> int
 {
   auto k = runtime.block([&]() -> Task<int> {
     co_await runtime.waitAll(taskA(), taskD(), taskC());
-    // puts("--hello world");
-    // co_await runtime.waitAll(taskB());
     co_return 233;
   });
   printf("%d\n", k);
+}
+
+auto main() -> int {
+  auto k = runtime.block([&]() -> Task<int> {
+    auto addr = net::SocketAddr(net::SocketAddrV4::localhost(2333));
+    auto [listener, err] = net::TcpListener::bind(addr);
+    if (err != std::errc{}) {
+      co_return 0;
+    }
+    auto [stream, err2] = co_await listener.accept();
+    if (err2 != std::errc{}) {
+      co_return 0;
+    }
+    auto [n, err3] = co_await stream.send(std::as_byte(std::span("hello world", 11)));
+    if (err3 != std::errc{}) {
+      co_return 0;
+    }
+    co_return 233;
+  });
 }

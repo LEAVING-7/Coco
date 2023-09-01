@@ -1,4 +1,4 @@
-#include "mt_executor.hpp"
+#include "coco/mt_executor.hpp"
 
 namespace coco {
 
@@ -23,26 +23,32 @@ IoUring::~IoUring()
   ::close(mEventFd);
   ::io_uring_queue_exit(&mUring);
 }
-auto IoUring::prepRecv(Token token, int fd, BufSlice buf, int flag) -> void
+auto IoUring::prepRecv(Token token, int fd, std::span<std::byte> buf, int flag) noexcept -> void
 {
   auto sqe = fetchSqe();
   ::io_uring_prep_recv(sqe, fd, (void*)buf.data(), buf.size(), 0);
   ::io_uring_sqe_set_data(sqe, token);
 }
-auto IoUring::prepSend(Token token, int fd, BufView buf, int flag) -> void
+auto IoUring::prepSend(Token token, int fd, std::span<std::byte const> buf, int flag) noexcept -> void
 {
   auto sqe = fetchSqe();
   ::io_uring_prep_send(sqe, fd, (void const*)buf.data(), buf.size(), flag);
   ::io_uring_sqe_set_data(sqe, token);
 }
-auto IoUring::prepAccept(Token token, int fd, sockaddr* addr, socklen_t* addrlen, int flags) -> void
+auto IoUring::prepAccept(Token token, int fd, sockaddr* addr, socklen_t* addrlen, int flags) noexcept -> void
 {
   auto sqe = fetchSqe();
   ::io_uring_prep_accept(sqe, fd, addr, addrlen, flags);
   ::io_uring_sqe_set_data(sqe, token);
 }
-auto IoUring::seen(io_uring_cqe* cqe) -> void { ::io_uring_cqe_seen(&mUring, cqe); }
-auto IoUring::submitWait(int waitn) -> std::errc
+auto IoUring::prepConnect(Token token, int fd, sockaddr* addr, socklen_t addrlen) noexcept -> void
+{
+  auto sqe = fetchSqe();
+  ::io_uring_prep_connect(sqe, fd, addr, addrlen);
+  ::io_uring_sqe_set_data(sqe, token);
+}
+auto IoUring::seen(io_uring_cqe* cqe) noexcept -> void { ::io_uring_cqe_seen(&mUring, cqe); }
+auto IoUring::submitWait(int waitn) noexcept -> std::errc
 {
   auto r = ::io_uring_submit_and_wait(&mUring, waitn);
   if (r < 0) {
@@ -50,24 +56,24 @@ auto IoUring::submitWait(int waitn) -> std::errc
   }
   return std::errc(0);
 }
-auto IoUring::prepCancel(int fd) -> void
+auto IoUring::prepCancel(int fd) noexcept -> void
 {
   auto sqe = fetchSqe();
   ::io_uring_prep_cancel_fd(sqe, fd, 0);
 }
-auto IoUring::prepCancel(Token token) -> void
+auto IoUring::prepCancel(Token token) noexcept -> void
 {
   auto sqe = fetchSqe();
   ::io_uring_prep_cancel(sqe, token, 0);
   ::io_uring_sqe_set_data(sqe, token);
 }
-auto IoUring::prepClose(Token token, int fd) -> void
+auto IoUring::prepClose(Token token, int fd) noexcept -> void
 {
   auto sqe = fetchSqe();
   ::io_uring_prep_close(sqe, fd);
   ::io_uring_sqe_set_data(sqe, token);
 }
-auto IoUring::notify() -> void
+auto IoUring::notify() noexcept -> void
 {
   auto buf = std::uint64_t(0);
   auto r = ::write(mEventFd, &buf, sizeof(buf));
@@ -77,9 +83,9 @@ auto IoUring::fetchSqe() -> io_uring_sqe*
 {
   auto sqe = ::io_uring_get_sqe(&mUring);
   if (sqe == nullptr) {
-    throw std::runtime_error("sqe full");
+    throw std::runtime_error("sqe full"); // TODO: better without exception.
   }
   return sqe;
 }
-auto IoUring::advance(std::uint32_t n) -> void { ::io_uring_cq_advance(&mUring, n); }
+auto IoUring::advance(std::uint32_t n) noexcept -> void { ::io_uring_cq_advance(&mUring, n); }
 } // namespace coco

@@ -6,8 +6,25 @@
 
 namespace coco {
 class Runtime {
+  struct [[nodiscard]] CondJob : WorkerJob {
+    CondJob(std::atomic_size_t* count, WorkerJob* nextJob) : mCount(count), mNextJob(nextJob), WorkerJob(&CondJob::run)
+    {
+    }
 
-  struct SleepAwaiter {
+    static auto run(WorkerJob* job, void*) noexcept -> void
+    {
+      auto condJob = static_cast<CondJob*>(job);
+      auto count = condJob->mCount->fetch_sub(1);
+      if (count == 1) {
+        Proactor::get().execute(condJob->mNextJob);
+      }
+      delete condJob;
+    }
+    std::atomic_size_t* mCount;
+    WorkerJob* mNextJob;
+  };
+
+  struct [[nodiscard]] SleepAwaiter {
     SleepAwaiter(Duration duration) : mDuration(duration) {}
     auto await_ready() const noexcept -> bool { return false; }
     template <typename Promise>
@@ -54,8 +71,11 @@ public:
   }
 
   template <typename TaskTupleTy>
-  struct WaitAllAwaiter {
-    WaitAllAwaiter(Executor* executor, TaskTupleTy&& tasks) : mExecutor(executor), mTasks(std::move(tasks)) {}
+  struct [[nodiscard]] WaitNAwaiter {
+    constexpr WaitNAwaiter(std::size_t waiting, Executor* executor, TaskTupleTy&& tasks)
+        : mWaitingCount(waiting), mExecutor(executor), mTasks(std::move(tasks))
+    {
+    }
 
     auto await_ready() const noexcept -> bool { return false; }
     template <typename Promise>
@@ -66,8 +86,6 @@ public:
 
       auto setupTask = [&](auto&& task) { jobConds.push_back(&task.promise().state); };
       std::apply([&](auto&&... tuple) { (setupTask(tuple), ...); }, mTasks);
-
-      mWaitingCount = std::tuple_size_v<TaskTupleTy>;
 
       auto addWaitingJob = [&](auto&& task) { task.promise().addWaitingJob(new CondJob(&mWaitingCount, nextJob)); };
 
@@ -85,15 +103,26 @@ public:
     TaskTupleTy mTasks;
   };
 
-  auto await_ready() const noexcept -> bool { return false; }
-  auto await_suspend(std::coroutine_handle<> handle) noexcept -> void {}
-
-  auto await_resume() const noexcept -> void {}
   template <TaskConcept... TasksTy>
-  [[nodiscard]] auto waitAll(TasksTy&&... tasks) -> decltype(auto)
+  [[nodiscard]] constexpr auto waitAll(TasksTy&&... tasks) -> decltype(auto)
   {
     auto tasksTuple = std::make_tuple(std::forward<TasksTy>(tasks)...);
-    return WaitAllAwaiter<std::tuple<TasksTy...>>(mExecutor.get(), std::move(tasksTuple));
+    constexpr auto taskCount = std::tuple_size_v<decltype(tasksTuple)>;
+    return WaitNAwaiter<std::tuple<TasksTy...>>(taskCount, mExecutor.get(), std::move(tasksTuple));
+  }
+
+  template <typename TasksTuple>
+  [[nodiscard]] constexpr auto waitN(std::size_t n, TasksTuple&& tuple) -> decltype(auto)
+  {
+    static_assert(n <= std::tuple_size_v<TasksTuple>, "n must be less than task count");
+    return WaitNAwaiter<TasksTuple>(n, mExecutor.get(), std::move(tuple));
+  }
+
+  template <TaskConcept... TasksTy>
+  [[nodiscard]] constexpr auto waitAny(TasksTy&&... tasks) -> decltype(auto)
+  {
+    auto tasksTuple = std::make_tuple(std::forward<TasksTy>(tasks)...);
+    return WaitNAwaiter<std::tuple<TasksTy...>>(1, mExecutor.get(), std::move(tasksTuple));
   }
 
 private:

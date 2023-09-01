@@ -1,7 +1,7 @@
 #pragma once
 #include "preclude.hpp"
 
-#include "proactor.hpp"
+#include "coco/proactor.hpp"
 
 #include <coroutine>
 #include <memory>
@@ -19,22 +19,6 @@ enum class PromiseState : std::uint8_t {
   NeedNotifyAtomic = 1,
   NeedNotifyProactor = 2,
   Final = 2,
-};
-
-struct CondJob : WorkerJob {
-  CondJob(std::atomic_size_t* count, WorkerJob* nextJob) : mCount(count), mNextJob(nextJob), WorkerJob(&CondJob::run) {}
-
-  static auto run(WorkerJob* job) noexcept -> void
-  {
-    auto condJob = static_cast<CondJob*>(job);
-    auto count = condJob->mCount->fetch_sub(1);
-    if (count == 1) {
-      Proactor::get().execute(condJob->mNextJob);
-    }
-    delete condJob;
-  }
-  std::atomic_size_t* mCount;
-  WorkerJob* mNextJob;
 };
 
 struct PromiseBase {
@@ -75,7 +59,7 @@ struct Promise final : PromiseBase {
   std::atomic<PromiseState> state = PromiseState::Inital;
 
   auto get_return_object() noexcept -> Task<T>;
-  auto return_value(T value) noexcept -> void { returnValue = std::move(value); }
+  auto return_value(T value) noexcept -> void { std::construct_at(std::addressof(returnValue), std::move(value)); }
   auto result() const& -> T const&
   {
     if (exceptionPtr) {

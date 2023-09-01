@@ -13,7 +13,7 @@ inline auto genJobId() -> std::size_t
 }
 
 struct WorkerJob {
-  using fn_type = void (*)(WorkerJob* task) noexcept;
+  using fn_type = void (*)(WorkerJob* task, void* args) noexcept;
   WorkerJob(fn_type fn) noexcept : run(fn), next(nullptr), id(genJobId()) {}
 
   WorkerJob* next;
@@ -26,16 +26,10 @@ using WorkerJobQueue = Queue<&WorkerJob::next>;
 // TODO: need better implementation
 struct CoroJob : WorkerJob {
   CoroJob(std::coroutine_handle<> handle, WorkerJob::fn_type fn) noexcept : handle(handle), WorkerJob(fn) {}
-  static auto run(WorkerJob* job) noexcept -> void
+  static auto run(WorkerJob* job, void* args) noexcept -> void
   {
     auto coroJob = static_cast<CoroJob*>(job);
     coroJob->handle.resume();
-  }
-  static auto runDelete(WorkerJob* job) noexcept -> void
-  {
-    auto coroJob = static_cast<CoroJob*>(job);
-    coroJob->handle.resume();
-    delete coroJob;
   }
   std::coroutine_handle<> handle;
 };

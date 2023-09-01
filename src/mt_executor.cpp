@@ -1,4 +1,4 @@
-#include "mt_executor.hpp"
+#include "coco/mt_executor.hpp"
 
 namespace coco {
 
@@ -63,9 +63,8 @@ auto Worker::processTasks() -> void
   mQueueMt.lock();
   auto jobs = std::move(mTaskQueue);
   mQueueMt.unlock();
-  // FIXME: receve a job with next point to it self
   while (auto job = jobs.popFront()) {
-    job->run(job);
+    job->run(job, nullptr);
   }
 }
 auto Worker::pushTask(WorkerJob* job) -> void

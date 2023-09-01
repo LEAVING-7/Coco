@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
 
-#include "timer.hpp"
+#include "coco/timer.hpp"
 struct MyJob : coco::WorkerJob {
   MyJob(int i) : i(i), WorkerJob(&run) {}
-  static auto run(coco::WorkerJob* job) noexcept -> void {}
+  static auto run(coco::WorkerJob* job, void*) noexcept -> void {}
   int i;
 };
 
