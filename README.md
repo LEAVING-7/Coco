@@ -1,4 +1,4 @@
-# [WIP] Coco
+# [WIP]  Coco
 A simple C++ 20 coroutine library, using liburing.
 
 ## Features
@@ -20,7 +20,7 @@ static coco::Runtime rt(coco::MT, 4);
 
 auto server() -> coco::Task<int>
 {
-  using namespace coco::net;
+  using namespace coco::sys;
   ::puts("server start");
   auto [listener, errc] = TcpListener::bind(SocketAddr(SocketAddrV4::localhost(2333)));
 
@@ -58,7 +58,7 @@ auto server() -> coco::Task<int>
 
 auto client() -> coco::Task<>
 {
-  using namespace coco::net;
+  using namespace coco::sys;
   ::puts("client start");
   auto [client, errc] = co_await TcpStream::connect(SocketAddr(SocketAddrV4::localhost(2333)));
   if (errc != std::errc(0)) {
@@ -96,4 +96,4 @@ auto main() -> int
 }
 ```
 ## Requirements
-- latest liburing build and installed
+- latest liburing built and installed

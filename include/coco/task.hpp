@@ -231,4 +231,15 @@ struct [[nodiscard]] ThisTask {
   std::coroutine_handle<> mCoHandle;
   std::size_t mJobId;
 };
+
+struct [[nodiscard]] Yield {
+  constexpr auto await_ready() const noexcept -> bool { return false; }
+  template <typename Promise>
+  constexpr auto await_suspend(std::coroutine_handle<Promise> handle) noexcept
+  {
+    // suspend then reshcedule
+    Proactor::get().execute(handle.promise().getThisJob());
+  }
+  constexpr auto await_resume() const noexcept -> void {}
+};
 } // namespace coco

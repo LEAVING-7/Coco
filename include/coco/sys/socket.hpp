@@ -5,17 +5,19 @@
 #include <sys/types.h>
 #include <sys/un.h>
 
-#include "coco/net/socket_addr.hpp"
-#include "coco/net/socket_awaiters.hpp"
+#include "coco/sys/fd.hpp"
+#include "coco/sys/socket_addr.hpp"
+#include "coco/sys/socket_awaiters.hpp"
 
-namespace coco::net {
-inline auto lastErrc() -> std::errc { return std::errc(errno); }
+namespace coco::sys {
 
-class Socket {
+class Socket : public Fd {
 public:
   Socket() noexcept = default;
-  Socket(int fd) noexcept : mFd(fd) {}
-  Socket(Socket&& socket) noexcept : mFd(std::exchange(socket.mFd, -1)) {}
+  Socket(int fd) noexcept : Fd(fd) {}
+  Socket(Socket&& socket) noexcept = default;
+  auto operator=(Socket&& socket) noexcept -> Socket& = default;
+  ~Socket() noexcept { close(); }
 
   static auto create(SocketAddr const& addr) noexcept -> std::pair<Socket, std::errc>
   {
@@ -27,14 +29,8 @@ public:
     if (fd == -1) {
       return {-1, lastErrc()};
     }
-    return {Socket(fd), std::errc{0}};
+    return {fd, std::errc{0}};
   }
-  auto operator=(Socket&& socket) noexcept -> Socket&
-  {
-    mFd = std::exchange(socket.mFd, -1);
-    return *this;
-  }
-  ~Socket() noexcept { close(); }
 
   auto bind(SocketAddr const& addr) noexcept -> std::errc
   {
@@ -75,7 +71,7 @@ public:
     }
     return std::errc{0};
   }
-  
+
   auto getopt(int level, int optname, void* optval, socklen_t* optlen) noexcept -> std::errc
   {
     if (::getsockopt(mFd, level, optname, optval, optlen) == -1) {
@@ -83,22 +79,5 @@ public:
     }
     return std::errc{0};
   }
-
-  auto close() noexcept -> std::errc
-  {
-    auto err = std::errc{0};
-    if (mFd != -1) {
-      if (::close(mFd) == -1) {
-        err = lastErrc();
-      }
-      mFd = -1;
-    }
-    return err;
-  }
-
-  auto fd() const noexcept -> int { return mFd; }
-
-private:
-  int mFd{-1};
 };
-} // namespace coco::net
+} // namespace coco::sys

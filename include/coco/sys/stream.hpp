@@ -1,14 +1,15 @@
 #pragma once
 #include "coco/__preclude.hpp"
 
+#include "coco/sys/socket.hpp"
 #include "coco/task.hpp"
-#include "coco/net/socket.hpp"
 
-namespace coco::net {
+namespace coco::sys {
 class TcpStream : private Socket {
 public:
   TcpStream() noexcept = default;
   TcpStream(TcpStream&& stream) noexcept = default;
+  auto operator=(TcpStream&& stream) noexcept -> TcpStream& = default;
 
   static auto connect(SocketAddr const& addr) -> coco::Task<std::pair<TcpStream, std::errc>>
   {
@@ -29,4 +30,4 @@ public:
 private:
   TcpStream(Socket&& socket) noexcept : Socket(std::move(socket)) {}
 };
-} // namespace coco::net
+} // namespace coco::sys

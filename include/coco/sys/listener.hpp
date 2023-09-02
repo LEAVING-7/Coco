@@ -4,7 +4,7 @@
 #include "socket.hpp"
 #include "stream.hpp"
 
-namespace coco::net {
+namespace coco::sys {
 class TcpListener : private Socket {
 public:
   TcpListener() noexcept = default;
@@ -43,4 +43,4 @@ public:
 private:
   TcpListener(Socket&& socket) noexcept : Socket(std::move(socket)) {}
 };
-} // namespace coco::net
+} // namespace coco::sys

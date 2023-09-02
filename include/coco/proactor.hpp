@@ -60,6 +60,15 @@ public:
   {
     mUring.prepConnect(token, fd, addr, addrlen);
   }
+  auto prepRead(Token token, int fd, std::span<std::byte> buf, off_t offset) -> void
+  {
+    mUring.prepRead(token, fd, buf, offset);
+  }
+  auto prepWrite(Token token, int fd, std::span<std::byte const> buf, off_t offset) -> void
+  {
+    mUring.prepWrite(token, fd, buf, offset);
+  }
+
   auto prepCancel(int fd) -> void { mUring.prepCancel(fd); }
   auto prepCancel(Token token) -> void { mUring.prepCancel(token); }
   auto prepClose(Token token, int fd) -> void { mUring.prepClose(token, fd); }

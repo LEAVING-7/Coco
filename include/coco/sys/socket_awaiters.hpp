@@ -1,11 +1,12 @@
 #pragma once
 #include "coco/__preclude.hpp"
+
 #include "coco/proactor.hpp"
-#include "coco/net/socket_addr.hpp"
+#include "coco/sys/socket_addr.hpp"
 
 #include <coroutine>
 
-namespace coco::net::detail {
+namespace coco::sys::detail {
 struct [[nodiscard]] IoJob : WorkerJob {
   IoJob(WorkerJob* pending) : WorkerJob(&IoJob::run), mPending(pending){};
   static auto run(WorkerJob* job, void* args) noexcept -> void
@@ -113,4 +114,4 @@ struct [[nodiscard]] AcceptAwaiter : SocketAwaiter {
   }
   IoJob mIoJob;
 };
-}; // namespace coco::net::detail
+}; // namespace coco::sys::detail

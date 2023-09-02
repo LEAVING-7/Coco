@@ -4,7 +4,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
-namespace coco::net {
+namespace coco::sys {
 // TODO: Add support for IPv6
 struct Ipv4Addr {
   constexpr Ipv4Addr() noexcept = default;
@@ -65,4 +65,4 @@ struct SocketAddr {
   SocketAddrV4 mV4;
 };
 
-} // namespace coco::net
+} // namespace coco::sys

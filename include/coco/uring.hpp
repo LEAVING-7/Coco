@@ -44,6 +44,9 @@ public:
   auto prepAccept(Token token, int fd, sockaddr* addr, socklen_t* addrlen, int flags = 0) noexcept -> void;
   auto prepConnect(Token token, int fd, sockaddr* addr, socklen_t addrlen) noexcept -> void;
 
+  auto prepRead(Token token, int fd, std::span<std::byte> buf, off_t offset) noexcept -> void;
+  auto prepWrite(Token token, int fd, std::span<std::byte const> buf, off_t offset) noexcept -> void;
+  
   auto prepCancel(int fd) noexcept -> void;
   auto prepCancel(Token token) noexcept -> void;
   auto prepClose(Token token, int fd) noexcept -> void;

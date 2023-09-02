@@ -1,3 +1,3 @@
 #pragma once
-#include "coco/net/stream.hpp"
-#include "coco/net/listener.hpp"
+#include "coco/sys/stream.hpp"
+#include "coco/sys/listener.hpp"

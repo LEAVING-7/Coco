@@ -73,6 +73,18 @@ auto IoUring::prepClose(Token token, int fd) noexcept -> void
   ::io_uring_prep_close(sqe, fd);
   ::io_uring_sqe_set_data(sqe, token);
 }
+auto IoUring::prepRead(Token token, int fd, std::span<std::byte> buf, off_t offset) noexcept -> void
+{
+  auto sqe = fetchSqe();
+  ::io_uring_prep_read(sqe, fd, (void*)buf.data(), buf.size(), offset);
+  ::io_uring_sqe_set_data(sqe, token);
+}
+auto IoUring::prepWrite(Token token, int fd, std::span<std::byte const> buf, off_t offset) noexcept -> void
+{
+  auto sqe = fetchSqe();
+  ::io_uring_prep_write(sqe, fd, (void const*)buf.data(), buf.size(), offset);
+  ::io_uring_sqe_set_data(sqe, token);
+}
 auto IoUring::notify() noexcept -> void
 {
   auto buf = std::uint64_t(0);
