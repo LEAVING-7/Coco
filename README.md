@@ -1,5 +1,5 @@
 # [WIP] Coco
-A simple and easy to use C++ 20 coroutine library.
+A simple C++ 20 coroutine library, using liburing.
 
 ## Features
 The following is basically completed, but there may still be some bugs. (issues and PRs are welcome)
