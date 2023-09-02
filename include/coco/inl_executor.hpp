@@ -4,5 +4,10 @@
 #include <coroutine>
 
 namespace coco {
+class InlExecutor {
+public:
 
-}
+private:
+
+};
+} // namespace coco

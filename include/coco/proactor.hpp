@@ -32,6 +32,26 @@ public:
   auto deleteTimer(std::size_t jobId) noexcept -> void { mTimerManager.deleteTimer(jobId); }
 
   auto notify() -> void { mUring.notify(); }
+  auto prepRecv(Token token, int fd, std::span<std::byte> buf, int flag = 0) -> void
+  {
+    mUring.prepRecv(token, fd, buf, flag);
+  }
+  auto prepSend(Token token, int fd, std::span<std::byte const> buf, int flag = 0) -> void
+  {
+    mUring.prepSend(token, fd, buf, flag);
+  }
+  auto prepAccept(Token token, int fd, sockaddr* addr, socklen_t* addrlen, int flags = 0) -> void
+  {
+    mUring.prepAccept(token, fd, addr, addrlen, flags);
+  }
+  auto prepConnect(Token token, int fd, sockaddr* addr, socklen_t addrlen) -> void
+  {
+    mUring.prepConnect(token, fd, addr, addrlen);
+  }
+  auto prepCancel(int fd) -> void { mUring.prepCancel(fd); }
+  auto prepCancel(Token token) -> void { mUring.prepCancel(token); }
+  auto prepClose(Token token, int fd) -> void { mUring.prepClose(token, fd); }
+
   auto wait(std::atomic_bool& notifying) -> WorkerJob*
   {
     auto [jobs, count] = mTimerManager.processTimers();
@@ -58,26 +78,6 @@ public:
     mUring.seen(cqe);
     return nullptr;
   }
-
-  auto prepRecv(Token token, int fd, std::span<std::byte> buf, int flag = 0) -> void
-  {
-    mUring.prepRecv(token, fd, buf, flag);
-  }
-  auto prepSend(Token token, int fd, std::span<std::byte const> buf, int flag = 0) -> void
-  {
-    mUring.prepSend(token, fd, buf, flag);
-  }
-  auto prepAccept(Token token, int fd, sockaddr* addr, socklen_t* addrlen, int flags = 0) -> void
-  {
-    mUring.prepAccept(token, fd, addr, addrlen, flags);
-  }
-  auto prepConnect(Token token, int fd, sockaddr* addr, socklen_t addrlen) -> void
-  {
-    mUring.prepConnect(token, fd, addr, addrlen);
-  }
-  auto prepCancel(int fd) -> void { mUring.prepCancel(fd); }
-  auto prepCancel(Token token) -> void { mUring.prepCancel(token); }
-  auto prepClose(Token token, int fd) -> void { mUring.prepClose(token, fd); }
 
 private:
   Executor* mExecutor;

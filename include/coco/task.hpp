@@ -23,11 +23,6 @@ enum class PromiseState : std::uint8_t {
 };
 
 struct PromiseBase {
-  CoroJob currentJob{nullptr, &CoroJob::run};
-  std::atomic<WorkerJob*>* continueJob{nullptr}; // used for join
-  WorkerJobQueue waitingLists;                   // TODO 8 bytes single linked list
-  std::exception_ptr exceptionPtr;
-
   struct FinalAwaiter {
     auto await_ready() const noexcept -> bool { return false; }
     template <typename Promise>
@@ -36,10 +31,9 @@ struct PromiseBase {
       assert(handle.done() && "handle should done here");
       auto& promise = handle.promise();
 
-      ::printf("FinalAwaiter::await_suspend %lu\n", promise.currentJob.id);
-      auto state = promise.state.exchange(PromiseState::Final);
+      auto state = promise.mState.exchange(PromiseState::Final);
       if (state == PromiseState::NeedNotifyAtomic) {
-        promise.state.notify_one();
+        promise.mState.notify_one();
       } else if (state == PromiseState::NeedDetach) {
         handle.destroy();
       } /* else if (state == PromiseState::NeedCancel) {
@@ -50,69 +44,72 @@ struct PromiseBase {
         return;
       } */
 
-      if (!promise.waitingLists.empty()) {
-        Proactor::get().execute(std::move(promise.waitingLists));
+      if (!promise.mWaitingList.empty()) {
+        Proactor::get().execute(std::move(promise.mWaitingList));
       }
 
-      if (promise.continueJob != nullptr) {
-        auto continueJob = promise.continueJob->exchange(nullptr);
+      if (promise.mContinueJob != nullptr) {
+        auto continueJob = promise.mContinueJob->exchange(nullptr);
         if (continueJob != &emptyJob) {
-          ::printf("continueJob %lu\n", continueJob->id);
           Proactor::get().execute(continueJob);
         }
       }
     }
     auto await_resume() noexcept -> void {}
   };
-
   auto initial_suspend() noexcept -> std::suspend_always { return {}; }
   auto final_suspend() noexcept -> FinalAwaiter { return {}; }
-  auto unhandled_exception() noexcept -> void { exceptionPtr = std::current_exception(); }
+  auto unhandled_exception() noexcept -> void { mExceptionPtr = std::current_exception(); }
 
-  auto setCoHandle(std::coroutine_handle<> handle) noexcept -> void { currentJob.handle = handle; }
-  auto addWaitingJob(WorkerJob* job) noexcept -> void { waitingLists.pushBack(job); }
-  auto getThisJob() noexcept -> WorkerJob* { return &currentJob; }
-  auto addContinueJob(std::atomic<WorkerJob*>* job) noexcept -> void { continueJob = job; }
+  auto setCoHandle(std::coroutine_handle<> handle) noexcept -> void { mCurrentJob.handle = handle; }
+  auto addWaitingJob(WorkerJob* job) noexcept -> void { mWaitingList.pushBack(job); }
+  auto getThisJob() noexcept -> WorkerJob* { return &mCurrentJob; }
+  auto addContinueJob(std::atomic<WorkerJob*>* job) noexcept -> void { mContinueJob = job; }
+
+  CoroJob mCurrentJob{nullptr, &CoroJob::run};
+  std::atomic<WorkerJob*>* mContinueJob{nullptr}; // used for join
+  WorkerJobQueue mWaitingList;                    // TODO 8 bytes single linked list
+  std::exception_ptr mExceptionPtr;
 };
 
 template <typename T>
 struct Promise final : PromiseBase {
-  T returnValue;
-  std::atomic<PromiseState> state = PromiseState::Inital;
-
-  auto cancel() noexcept -> void { state.store(PromiseState::NeedCancel); }
+  auto cancel() noexcept -> void { mState.store(PromiseState::NeedCancel); }
   auto get_return_object() noexcept -> Task<T>;
-  auto return_value(T value) noexcept -> void { std::construct_at(std::addressof(returnValue), std::move(value)); }
+  auto return_value(T value) noexcept -> void { std::construct_at(std::addressof(mRetVal), std::move(value)); }
   auto result() const& -> T const&
   {
-    if (exceptionPtr) {
-      std::rethrow_exception(exceptionPtr);
+    if (mExceptionPtr) {
+      std::rethrow_exception(mExceptionPtr);
     }
-    return returnValue;
+    return mRetVal;
   }
   auto result() && -> T&&
   {
-    if (exceptionPtr) {
-      std::rethrow_exception(exceptionPtr);
+    if (mExceptionPtr) {
+      std::rethrow_exception(mExceptionPtr);
     }
-    return std::move(returnValue);
+    return std::move(mRetVal);
   }
+
+  T mRetVal;
+  std::atomic<PromiseState> mState = PromiseState::Inital;
 };
 
 template <>
 struct Promise<void> : PromiseBase {
-  std::atomic<PromiseState> state = PromiseState::Inital;
-
-  auto cancel() noexcept -> void { state.store(PromiseState::NeedCancel); }
+  auto cancel() noexcept -> void { mState.store(PromiseState::NeedCancel); }
   auto get_return_object() noexcept -> Task<void>;
   auto return_void() noexcept -> void {}
   auto result() const -> void
   {
-    if (exceptionPtr) {
-      std::rethrow_exception(exceptionPtr);
+    if (mExceptionPtr) {
+      std::rethrow_exception(mExceptionPtr);
     }
     return;
   }
+
+  std::atomic<PromiseState> mState = PromiseState::Inital;
 };
 
 template <typename T>

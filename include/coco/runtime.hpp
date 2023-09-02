@@ -50,7 +50,7 @@ public:
     static_assert(coco::IsTask<result_t>, "block function must return a task");
 
     auto task = std::invoke(fn, std::forward<Args>(args)...);
-    auto& state = task.promise().state;
+    auto& state = task.promise().mState;
     CoroJob job(task.handle(), &CoroJob::run);
     state = coco::PromiseState::NeedNotifyAtomic;
 
@@ -82,7 +82,7 @@ public:
       std::vector<std::atomic<PromiseState>*> jobConds;
       auto nextJob = handle.promise().getThisJob();
 
-      auto setupTask = [&](auto&& task) { jobConds.push_back(&task.promise().state); };
+      auto setupTask = [&](auto&& task) { jobConds.push_back(&task.promise().mState); };
       std::apply([&](auto&&... tuple) { (setupTask(tuple), ...); }, mTasks);
 
       auto addWaitingJob = [&](auto&& task) { task.promise().addWaitingJob(new CondJob(&mWaitingCount, nextJob)); };
@@ -175,7 +175,7 @@ public:
   [[nodiscard]] constexpr auto spawnDetach(TaskTy&& task) -> decltype(auto)
   {
     auto& promise = task.promise();
-    promise.state.store(coco::PromiseState::NeedDetach);
+    promise.mState.store(coco::PromiseState::NeedDetach);
     Proactor::get().execute(promise.getThisJob());
     [[maybe_unused]] auto handel = task.take();
   }
@@ -184,12 +184,3 @@ private:
   std::shared_ptr<MtExecutor> mExecutor;
 };
 } // namespace coco
-
-/*
-  auto await_ready() const noexcept -> bool { return false; }
-  template <typename Promise>
-  auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
-  {
-  }
-  auto await_resume() const noexcept -> void {}
-*/

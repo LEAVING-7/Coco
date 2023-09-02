@@ -1,2 +1,2 @@
 # [WIP] coco
-coroutine runtime for C++20 coroutine
+A simple and easy to use C++ 20 coroutine library.

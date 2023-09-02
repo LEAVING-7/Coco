@@ -44,13 +44,12 @@ auto main() -> int
         co_await chan.write(i);
       }
       ::puts("writer done");
-      // chan.close();
       co_return;
     }(chan));
 
     co_await reader.join();
     co_await writer.join();
-    ::puts("after join");
+    chan.close();
     co_return 2333;
   });
   assert(result == 2333);

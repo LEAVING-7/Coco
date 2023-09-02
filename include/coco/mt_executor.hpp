@@ -69,7 +69,6 @@ public:
 
 private:
   auto processTasks() -> void;
-  // auto pushTaskLockFree(WorkerJob* job) -> void { mLockFreeQueue.pushFront(job); }
 
   auto pushTask(WorkerJob* job) -> void;
   auto tryPushTask(WorkerJob* job) -> bool;
@@ -77,7 +76,7 @@ private:
   auto pushTask(WorkerJobQueue&& jobs) -> void;
   auto tryPushTask(WorkerJobQueue&& jobs) -> bool;
 
-  // private:
+private:
   enum class State {
     Waiting,
     Executing,
