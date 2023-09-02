@@ -16,6 +16,8 @@ public:
     if (errc != std::errc{0}) {
       return {TcpListener(), errc};
     }
+    int opt = 1;
+    socket.setopt(SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
     errc = socket.bind(addr);
     if (errc != std::errc{0}) {
       return {TcpListener(), errc};

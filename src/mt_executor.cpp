@@ -70,7 +70,6 @@ auto Worker::processTasks() -> void
 auto Worker::pushTask(WorkerJob* job) -> void
 {
   mQueueMt.lock();
-  assert(job->next == nullptr);
   mTaskQueue.pushBack(job);
   mQueueMt.unlock();
 }
@@ -81,11 +80,6 @@ auto Worker::tryPushTask(WorkerJob* job) -> bool
     return false;
   };
 
-  // assert(job->next == nullptr);
-  if (job->next != nullptr) {
-    ::printf("job id: %lu\n", job->id);
-    assert(false);
-  }
   mTaskQueue.pushBack(job);
   return true;
 }

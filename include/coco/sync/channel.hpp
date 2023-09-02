@@ -4,7 +4,6 @@
 #include <coco/runtime.hpp>
 #include <coco/util/ring_buffer.hpp>
 
-
 namespace coco::sync {
 template <typename T, std::uint32_t N>
 class Channel;
@@ -24,7 +23,7 @@ struct ChannelWriteAwaiter {
   auto await_ready() noexcept -> bool { return false; }
   template <typename Promise>
   auto await_suspend(std::coroutine_handle<Promise> handle) noexcept;
-  auto await_resume() noexcept -> void;
+  auto await_resume() noexcept -> bool;
 
   T const* mVal;
   Channel<T, N>& mChannel;
@@ -102,6 +101,8 @@ auto ChannelReadAwaiter<T, N>::await_resume() noexcept -> std::optional<T>
   return std::move(mVal);
 }
 
+// ChannelWriteAwaiter
+
 template <typename T, std::uint32_t N>
 template <typename Promise>
 auto ChannelWriteAwaiter<T, N>::await_suspend(std::coroutine_handle<Promise> handle) noexcept
@@ -127,16 +128,17 @@ auto ChannelWriteAwaiter<T, N>::await_suspend(std::coroutine_handle<Promise> han
 }
 
 template <typename T, std::uint32_t N>
-auto ChannelWriteAwaiter<T, N>::await_resume() noexcept -> void
+auto ChannelWriteAwaiter<T, N>::await_resume() noexcept -> bool
 {
   std::scoped_lock lk(mChannel.mMt);
   if (mChannel.mClosed) {
-    return;
+    return false;
   }
   if (mVal != nullptr) {
     mChannel.mBuffer.push(std::move(*mVal));
     mVal = nullptr;
   }
+  return true;
 }
 } // namespace detail
 }; // namespace coco::sync

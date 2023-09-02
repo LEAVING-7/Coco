@@ -66,16 +66,15 @@ public:
       // timeout
     } else if (e != std::errc(0)) {
       // assert(false); // error occured
-    } else {
-      assert(cqe != nullptr);
+    } else if (cqe != nullptr) {
       if (cqe->flags & IORING_CQE_F_MORE) {
         notifying.store(false);
       } else {
         auto job = (WorkerJob*)cqe->user_data;
         job->run(job, &cqe->res);
       }
+      mUring.seen(cqe);
     }
-    mUring.seen(cqe);
     return nullptr;
   }
 

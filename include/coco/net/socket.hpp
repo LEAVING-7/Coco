@@ -68,6 +68,22 @@ public:
   auto accept(int flags = 0) noexcept -> decltype(auto) { return detail::AcceptAwaiter(mFd); }
   auto connect(SocketAddr addr) noexcept -> decltype(auto) { return detail::ConnectAwaiter(mFd, addr); }
 
+  auto setopt(int level, int optname, void const* optval, socklen_t optlen) noexcept -> std::errc
+  {
+    if (::setsockopt(mFd, level, optname, optval, optlen) == -1) {
+      return lastErrc();
+    }
+    return std::errc{0};
+  }
+  
+  auto getopt(int level, int optname, void* optval, socklen_t* optlen) noexcept -> std::errc
+  {
+    if (::getsockopt(mFd, level, optname, optval, optlen) == -1) {
+      return lastErrc();
+    }
+    return std::errc{0};
+  }
+
   auto close() noexcept -> std::errc
   {
     auto err = std::errc{0};

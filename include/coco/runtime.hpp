@@ -44,7 +44,7 @@ public:
 
   template <typename F, typename... Args>
     requires std::invocable<F, Args...>
-  auto block(F&& fn, Args&&... args) -> auto
+  auto block(F&& fn, Args&&... args)
   {
     using result_t = std::invoke_result_t<F, Args...>;
     static_assert(coco::IsTask<result_t>, "block function must return a task");
@@ -150,11 +150,11 @@ public:
       mTask.promise().addContinueJob(mDone.get());
       Proactor::get().execute(mTask.promise().getThisJob());
     }
-    JoinHandle(JoinHandle&&) noexcept = default;
+    JoinHandle(JoinHandle&&) : mTask(std::move(mTask)), mDone(std::move(mDone)) {}
     ~JoinHandle() noexcept
     {
-      if (mDone->load() != nullptr) {
-        assert("looks like you forget to call join()");
+      if (mDone->load() == &emptyJob) {
+        assert(false && "looks like you forget to call join()");
       }
     }
     [[nodiscard]] auto join() -> decltype(auto) { return JoinAwaiter(mDone.get()); }
@@ -165,7 +165,7 @@ public:
   };
 
   template <TaskConcept TaskTy>
-  [[nodiscard]] constexpr auto spawn(TaskTy&& task) -> decltype(auto)
+  [[nodiscard]] constexpr auto spawn(TaskTy&& task) -> JoinHandle<TaskTy>
   {
     return JoinHandle<TaskTy>(std::move(task));
   }
