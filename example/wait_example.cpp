@@ -1,7 +1,7 @@
 #include <coco/runtime.hpp>
 #include <coco/sync/channel.hpp>
 
-static coco::Runtime rt(coco::INL, 4);
+static coco::Runtime rt(coco::MT, 4);
 
 auto taskA() -> coco::Task<>
 {
@@ -27,6 +27,7 @@ auto main() -> int
 {
   rt.block([]() -> coco::Task<> {
     co_await rt.waitAll(taskA(), taskB(), taskC());
+    ::puts("everything done");
     co_return;
   }());
 }

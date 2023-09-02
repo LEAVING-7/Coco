@@ -118,12 +118,53 @@ public:
     co_return co_await SleepAwaiter(sleepTime);
   }
 
+  template <typename TaskTy>
+  struct JoinHandle {
+    JoinHandle() noexcept = default;
+    JoinHandle(TaskTy&& task) noexcept
+        : mTask(std::forward<TaskTy>(task)), mDone(std::make_unique<std::atomic<WorkerJob*>>(&emptyJob))
+    {
+      mTask.promise().addContinueJob(mDone.get());
+      Proactor::get().execute(mTask.promise().getThisJob());
+    }
+    JoinHandle(JoinHandle&& other) noexcept : mDone(std::move(other.mDone)), mTask(std::move(other.mTask)){};
+    auto operator=(JoinHandle&& other) noexcept -> JoinHandle& = default;
+
+    ~JoinHandle() noexcept
+    {
+      if (mDone != nullptr && mTask.handle() != nullptr && mDone->load() == &emptyJob) {
+        assert(false && "looks like you forget to call join()");
+      }
+    }
+    [[nodiscard]] auto join() { return JoinAwaiter(mDone.get()); }
+
+    // atomic variable cannot be moved, so I use unique_ptr to wrap it
+    std::unique_ptr<std::atomic<WorkerJob*>> mDone;
+    TaskTy mTask;
+  };
+
   template <TaskConcept... TasksTy>
   [[nodiscard]] constexpr auto waitAll(TasksTy&&... tasks) -> decltype(auto)
   {
     auto tasksTuple = std::make_tuple(std::forward<TasksTy>(tasks)...);
     constexpr auto taskCount = std::tuple_size_v<decltype(tasksTuple)>;
     return WaitNAwaiter<std::tuple<TasksTy...>>(taskCount, mExecutor.get(), std::move(tasksTuple));
+  }
+
+  template <typename... JoinHandles>
+  [[nodiscard]] auto waitAll(JoinHandles&&... handles) -> Task<>
+  {
+    if constexpr (sizeof...(handles) == 0) {
+      co_return;
+    } else if constexpr (requires { std::span(handles...); }) { // span like
+      auto span = std::span(std::forward<JoinHandles>(handles)...);
+      for (auto& handle : span) {
+        co_await handle.join();
+      }
+    } else {
+      (co_await handles.join(), ...);
+    }
+    co_return;
   }
 
   template <typename TasksTuple>
@@ -140,28 +181,6 @@ public:
     auto tasksTuple = std::make_tuple(std::forward<TasksTy>(tasks)...);
     return WaitNAwaiter<std::tuple<TasksTy...>>(1, mExecutor.get(), std::move(tasksTuple));
   }
-
-  template <typename TaskTy>
-  struct JoinHandle {
-    JoinHandle(TaskTy&& task) noexcept
-        : mTask(std::forward<TaskTy>(task)), mDone(std::make_unique<std::atomic<WorkerJob*>>(&emptyJob))
-    {
-      mTask.promise().addContinueJob(mDone.get());
-      Proactor::get().execute(mTask.promise().getThisJob());
-    }
-    JoinHandle(JoinHandle&&) : mTask(std::move(mTask)), mDone(std::move(mDone)) {}
-    ~JoinHandle() noexcept
-    {
-      if (mDone->load() == &emptyJob) {
-        assert(false && "looks like you forget to call join()");
-      }
-    }
-    [[nodiscard]] auto join() -> decltype(auto) { return JoinAwaiter(mDone.get()); }
-
-    // atomic variable cannot be moved, so I use unique_ptr to wrap it
-    std::unique_ptr<std::atomic<WorkerJob*>> mDone;
-    TaskTy mTask;
-  };
 
   template <TaskConcept TaskTy>
   [[nodiscard]] constexpr auto spawn(TaskTy&& task) -> JoinHandle<TaskTy>
@@ -183,4 +202,7 @@ private:
   const RuntimeType mType;
   std::shared_ptr<Executor> mExecutor;
 };
+
+template <typename TaskTy>
+using JoinHandle = typename Runtime::template JoinHandle<TaskTy>;
 } // namespace coco

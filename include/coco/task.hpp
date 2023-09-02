@@ -141,8 +141,13 @@ public:
     assert(mHandle != nullptr);
     mHandle.promise().setCoHandle(mHandle);
   }
-  Task(Task const&) = delete;
   Task(Task&& other) noexcept : mHandle(std::exchange(other.mHandle, nullptr)) {}
+  auto operator=(Task&& other) -> Task&
+  {
+    assert(mHandle == nullptr);
+    mHandle = std::exchange(other.mHandle, nullptr);
+    return *this;
+  };
   ~Task() noexcept { destroy(); }
 
   auto operator==(Task const& other) -> bool { return mHandle == other.mHandle; }

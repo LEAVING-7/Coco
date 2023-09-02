@@ -3,7 +3,7 @@
 
 #include "coco/task.hpp"
 
-// FIXME: not finished
+// FIXME: not finished and not efficient
 namespace coco::sync {
 class Mutex;
 namespace detail {
@@ -44,7 +44,6 @@ public:
       return;
     }
     auto job = mWaitQueue.popFront();
-    job->next = nullptr;
     mQueueMt.unlock();
     Proactor::get().execute(job);
   }

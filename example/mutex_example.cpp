@@ -7,7 +7,7 @@ std::size_t counter = 0;
 
 auto incTask(coco::sync::Mutex& mt) -> coco::Task<>
 {
-  for (int i = 0; i < 100; i++) {
+  for (int i = 0; i < 1'000'00; i++) {
     co_await mt.lock();
     counter += 1;
     mt.unlock();
@@ -15,37 +15,16 @@ auto incTask(coco::sync::Mutex& mt) -> coco::Task<>
   co_return;
 }
 
-auto sleepTask(coco::sync::Mutex& mt) -> coco::Task<>
-{
-  ::puts("hello");
-  co_await mt.lock();
-  co_await rt.sleep(2s);
-  mt.unlock();
-  co_return;
-}
-
 auto main() -> int
 {
   rt.block([]() -> coco::Task<> {
-    coco::sync::Mutex mt;
-    for (int i = 0; i < 1000; i++) {
-      rt.spawnDetach(incTask(mt));
+    auto mt = coco::sync::Mutex();
+    auto ths = std::vector<coco::JoinHandle<coco::Task<>>>(4);
+    for (int i = 0; i < ths.size(); i++) {
+      ths[i] = rt.spawn(incTask(mt));
     }
-    co_await rt.sleep(5s); // give some time to finish
-    ::printf("counter: %zu\n", counter);
-    assert(counter == 1000 * 100);
-    co_return;
-  }());
-
-  rt.block([]() -> coco::Task<> {
-    coco::sync::Mutex mt;
-    auto th = rt.spawn(sleepTask(mt));
-
-    co_await mt.lock();
-    ::puts("resume");
-    mt.unlock();
-
-    co_await th.join();
+    co_await rt.waitAll(ths);
+    ::printf("counter = %zu\n", counter);
     co_return;
   }());
 }
