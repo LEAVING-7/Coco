@@ -69,7 +69,8 @@ class Runtime {
 
       std::apply([&](auto&&... tuple) { (addWaitingJob(tuple), ...); }, mTasks);
 
-      assert(jobConds.size() == std::tuple_size_v<TaskTupleTy>);
+      assert(jobConds.size() == std::tuple_size_v<TaskTupleTy> &&
+             "the number of tasks must be equal to the number of conditions");
 
       auto runTask = [this](auto&& task) { mExecutor->enqueue(task.promise().getThisJob()); };
       std::apply([&](auto&&... tuple) { (runTask(tuple), ...); }, mTasks);
@@ -111,10 +112,18 @@ public:
 
   auto block(Task<> task) -> void { mExecutor->runMain(std::move(task)); }
 
-  template <typename Rep, typename Per>
-  [[nodiscard]] auto sleep(std::chrono::duration<Rep, Per> duration) -> Task<>
+  template <typename Rep, typename Period>
+  [[nodiscard]] auto sleepFor(std::chrono::duration<Rep, Period> duration) -> Task<>
   {
     auto sleepTime = std::chrono::duration_cast<coco::Duration>(duration);
+    co_return co_await SleepAwaiter(sleepTime);
+  }
+
+  template <typename Rep, typename Period>
+  [[nodiscard]] auto
+  sleepUntil(std::chrono::time_point<std::chrono::steady_clock, std::chrono::duration<Rep, Period>> time) -> Task<>
+  {
+    auto sleepTime = std::chrono::duration_cast<coco::Duration>(time - std::chrono::steady_clock::now());
     co_return co_await SleepAwaiter(sleepTime);
   }
 

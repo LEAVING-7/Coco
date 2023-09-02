@@ -214,4 +214,21 @@ inline auto Promise<void>::get_return_object() noexcept -> Task<void>
 {
   return Task<void>{std::coroutine_handle<Promise>::from_promise(*this)};
 }
+
+struct [[nodiscard]] ThisTask {
+  constexpr auto await_ready() const noexcept -> bool { return false; }
+  template <typename Promise>
+  constexpr auto await_suspend(std::coroutine_handle<Promise> handle) noexcept
+  {
+    mCoHandle = handle;
+    mJobId = handle.promise().getThisJob()->id;
+    return false;
+  }
+  constexpr auto await_resume() const noexcept -> std::pair<std::coroutine_handle<>, std::size_t>
+  {
+    return {mCoHandle, mJobId};
+  }
+  std::coroutine_handle<> mCoHandle;
+  std::size_t mJobId;
+};
 } // namespace coco

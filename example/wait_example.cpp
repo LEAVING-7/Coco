@@ -11,14 +11,14 @@ auto taskA() -> coco::Task<>
 
 auto taskB() -> coco::Task<>
 {
-  co_await rt.sleep(1s);
+  co_await rt.sleepFor(1s);
   ::puts("taskB");
   co_return;
 }
 
 auto taskC() -> coco::Task<>
 {
-  co_await rt.sleep(2s);
+  co_await rt.sleepFor(2s);
   ::puts("taskC");
   co_return;
 }
@@ -26,6 +26,9 @@ auto taskC() -> coco::Task<>
 auto main() -> int
 {
   rt.block([]() -> coco::Task<> {
+    auto [handle, id] = co_await coco::ThisTask();
+    ::printf("main task %p id = %zu\n", handle.address(), id);
+
     co_await rt.waitAll(taskA(), taskB(), taskC());
     ::puts("everything done");
     co_return;
