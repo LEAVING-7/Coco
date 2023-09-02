@@ -88,4 +88,12 @@ auto IoUring::fetchSqe() -> io_uring_sqe*
   return sqe;
 }
 auto IoUring::advance(std::uint32_t n) noexcept -> void { ::io_uring_cq_advance(&mUring, n); }
+auto IoUring::submit() noexcept -> std::errc
+{
+  auto r = ::io_uring_submit(&mUring);
+  if (r < 0) {
+    return std::errc(-r);
+  }
+  return std::errc(0);
+}
 } // namespace coco

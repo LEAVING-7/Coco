@@ -3,6 +3,7 @@
 
 #include "coco/task.hpp"
 
+// FIXME: not finished
 namespace coco::sync {
 class Mutex;
 namespace detail {
@@ -79,6 +80,7 @@ auto MutexTryLockAwaiter::await_suspend(std::coroutine_handle<Promise> awaiting)
   } else {
     mSuccess = true;
   }
+  return false;
 }
 inline auto MutexTryLockAwaiter::await_resume() const noexcept -> bool { return mSuccess; }
 }; // namespace detail

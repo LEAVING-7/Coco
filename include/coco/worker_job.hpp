@@ -8,7 +8,7 @@
 namespace coco {
 inline auto genJobId() -> std::size_t
 {
-  static std::atomic<std::size_t> id = 0;
+  static std::atomic_size_t id = 0;
   return id.fetch_add(1, std::memory_order_relaxed);
 }
 
@@ -26,16 +26,8 @@ using WorkerJobQueue = util::Queue<&WorkerJob::next>;
 inline auto emptyFn(WorkerJob*, void*) noexcept -> void { assert(false && "empty job should not be executed"); }
 inline WorkerJob emptyJob{emptyFn};
 
-// TODO: need better implementation
-struct CoroJob : WorkerJob {
-  CoroJob(std::coroutine_handle<> handle, WorkerJob::fn_type fn) noexcept : handle(handle), WorkerJob(fn) {}
-  static auto run(WorkerJob* job, void* args) noexcept -> void
-  {
-    auto coroJob = static_cast<CoroJob*>(job);
-    coroJob->handle.resume();
-  }
-  std::coroutine_handle<> handle;
-};
+template <typename T = void>
+struct Task;
 
 class Executor {
 public:
@@ -44,5 +36,6 @@ public:
 
   virtual auto enqueue(WorkerJobQueue&& queue, std::size_t count) noexcept -> void = 0;
   virtual auto enqueue(WorkerJob* handle) noexcept -> void = 0;
+  virtual auto runMain(Task<> task) -> void = 0;
 };
 } // namespace coco

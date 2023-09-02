@@ -1,11 +1,26 @@
-add_executable(wait_example wait_example.cpp)
-target_link_libraries(wait_example Coco)
-set_target_properties(wait_example PROPERTIES CXX_STANDARD 20)
+if(COCO_BUILD_EXAMPLE)
+  add_executable(wait_example wait_example.cpp)
+  target_link_libraries(wait_example Coco)
+  set_target_properties(wait_example PROPERTIES CXX_STANDARD 20)
 
-add_executable(tcp_example tcp_example.cpp)
-target_link_libraries(tcp_example Coco)
-set_target_properties(tcp_example PROPERTIES CXX_STANDARD 20)
+  add_executable(tcp_example tcp_example.cpp)
+  target_link_libraries(tcp_example Coco)
+  set_target_properties(tcp_example PROPERTIES CXX_STANDARD 20)
 
-add_executable(mutex_example mutex_example.cpp)
-target_link_libraries(mutex_example Coco)
-set_target_properties(mutex_example PROPERTIES CXX_STANDARD 20)
+  add_executable(mutex_example mutex_example.cpp)
+  target_link_libraries(mutex_example Coco)
+  set_target_properties(mutex_example PROPERTIES CXX_STANDARD 20)
+
+  add_executable(channel_example channel_example.cpp)
+  target_link_libraries(channel_example Coco)
+  set_target_properties(channel_example PROPERTIES CXX_STANDARD 20)
+
+  # add a target run all example
+  add_custom_target(run_example
+    COMMAND wait_example
+    COMMAND tcp_example
+    COMMAND mutex_example
+    COMMAND channel_example
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+endif()

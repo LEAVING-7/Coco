@@ -1,7 +1,6 @@
 #include "coco/mt_executor.hpp"
 
 namespace coco {
-
 auto Worker::forceStop() -> void
 {
   auto state = mState.load(std::memory_order_acquire);
@@ -30,11 +29,8 @@ auto Worker::loop() -> void
   while (true) {
     auto currState = mState.load(std::memory_order_relaxed);
     if (currState == State::Waiting) {
-      auto wakeupJob = mProactor->wait(mNofiying);
+      mProactor->wait();
       auto r = mState.compare_exchange_strong(currState, State::Executing, std::memory_order_acq_rel);
-      if (wakeupJob != nullptr) {
-        auto r = enqueue(wakeupJob);
-      }
       if (r == false) { // must be stop
         return;
       }
@@ -51,13 +47,7 @@ auto Worker::loop() -> void
     }
   }
 }
-auto Worker::notify() -> void
-{
-  if (mNofiying.exchange(true) == false) {
-    mProactor->notify();
-    return;
-  }
-}
+auto Worker::notify() -> void { mProactor->notify(); }
 auto Worker::processTasks() -> void
 {
   mQueueMt.lock();
@@ -72,6 +62,7 @@ auto Worker::pushTask(WorkerJob* job) -> void
   mQueueMt.lock();
   mTaskQueue.pushBack(job);
   mQueueMt.unlock();
+  notify();
 }
 auto Worker::tryPushTask(WorkerJob* job) -> bool
 {
@@ -79,19 +70,18 @@ auto Worker::tryPushTask(WorkerJob* job) -> bool
   if (!lk.owns_lock()) {
     return false;
   };
-
   mTaskQueue.pushBack(job);
+  notify();
   return true;
 }
-
 auto Worker::pushTask(WorkerJobQueue&& jobs) -> void
 {
   assert(jobs.back() == nullptr);
   mQueueMt.lock();
   mTaskQueue.append(std::move(jobs));
   mQueueMt.unlock();
+  notify();
 }
-
 auto Worker::tryPushTask(WorkerJobQueue&& jobs) -> bool
 {
   std::unique_lock lk(mQueueMt, std::try_to_lock);
@@ -99,6 +89,7 @@ auto Worker::tryPushTask(WorkerJobQueue&& jobs) -> bool
     return false;
   }
   mTaskQueue.append(std::move(jobs));
+  notify();
   return true;
 }
 
@@ -143,7 +134,6 @@ auto MtExecutor::join() noexcept -> void
 }
 
 auto MtExecutor::enqueue(WorkerJob* job) noexcept -> void { enqueuImpl(job); }
-
 auto MtExecutor::enqueue(WorkerJobQueue&& queue, std::size_t count) noexcept -> void
 {
   if (count == 0) {
@@ -156,5 +146,14 @@ auto MtExecutor::enqueue(WorkerJobQueue&& queue, std::size_t count) noexcept -> 
     }
   }
 }
+auto MtExecutor::runMain(Task<> task) -> void
+{
+  auto& state = task.promise().mState;
+  state = coco::PromiseState::NeedNotifyAtomic;
+  this->enqueue(task.promise().getThisJob());
+  while (state != coco::PromiseState::Final) {
+    state.wait(coco::PromiseState::NeedNotifyAtomic);
+  }
+};
 
 } // namespace coco

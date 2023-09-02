@@ -11,7 +11,7 @@
 #include <coroutine>
 
 #if !IO_URING_CHECK_VERSION(2, 5)
-  #error "io_uring version is too low"
+  #error "current io_uring version not support"
 #endif
 
 namespace coco {
@@ -19,16 +19,8 @@ class Worker;
 class WorkerJob;
 class MtExecutor;
 
-constexpr std::uint32_t kIoUringQueueSize = 2048;
+constexpr std::uint32_t kIoUringQueueSize = 1024;
 using Token = void*;
-struct GlobalUringInfo { // not used yet
-  static auto get() -> GlobalUringInfo&
-  {
-    static auto info = GlobalUringInfo();
-    return info;
-  }
-  std::atomic_size_t uringTaskCount = 0;
-};
 
 template <typename Rep, typename Ratio>
 static auto convertTime(std::chrono::duration<Rep, Ratio> duration, struct __kernel_timespec& out) noexcept -> void
@@ -59,6 +51,7 @@ public:
   auto seen(io_uring_cqe* cqe) noexcept -> void;
   auto advance(std::uint32_t n) noexcept -> void;
   auto submitWait(int waitn) noexcept -> std::errc;
+  auto submit() noexcept -> std::errc;
 
   template <typename Rep, typename Ratio>
   auto submitWait(io_uring_cqe*& cqe, std::chrono::duration<Rep, Ratio> duration) noexcept -> std::errc
@@ -79,7 +72,6 @@ public:
 
   // TODO: I can't find a method to notify a uring without a real fd :(.
   auto notify() noexcept -> void;
-
   auto uring() -> ::io_uring* { return &mUring; }
 
 private:

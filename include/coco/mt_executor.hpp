@@ -28,11 +28,7 @@ public:
     auto state = mState.load(std::memory_order_relaxed);
     if (state == State::Stop) [[unlikely]] {
       return false;
-    } else if (state == State::Waiting) {
-      pushTask(std::move<T>(task));
-      notify();
-      return true;
-    } else if (state == State::Executing) {
+    } else if (state == State::Waiting || state == State::Executing) {
       pushTask(std::move<T>(task));
       notify();
       return true;
@@ -46,13 +42,7 @@ public:
     auto state = mState.load(std::memory_order_relaxed);
     if (state == State::Stop) [[unlikely]] {
       return false;
-    } else if (state == State::Waiting) {
-      auto b = tryPushTask(std::move(task));
-      if (b) {
-        notify();
-      }
-      return b;
-    } else if (state == State::Executing) {
+    } else if (state == State::Waiting || state == State::Executing) {
       auto b = tryPushTask(std::move(task));
       if (b) {
         notify();
@@ -84,11 +74,9 @@ private:
   };
 
   coco::Proactor* mProactor = nullptr;
-
-  util::Queue<&WorkerJob::next> mTaskQueue;
   std::mutex mQueueMt;
+  util::Queue<&WorkerJob::next> mTaskQueue;
   std::atomic<State> mState;
-  std::atomic_bool mNofiying = false;
 };
 
 class MtExecutor : public Executor {
@@ -103,11 +91,13 @@ public:
   auto join() noexcept -> void;
   auto enqueue(WorkerJob* job) noexcept -> void override;
   auto enqueue(WorkerJobQueue&& queue, std::size_t count) noexcept -> void override;
+  auto runMain(Task<> task) -> void override;
 
 private:
   template <typename T>
-    requires std::is_same_v<WorkerJobQueue, T> || std::is_base_of_v<WorkerJob, std::remove_pointer_t<T>>
-                                                auto enqueuImpl(T task) noexcept -> void // NOLINT
+    requires std::is_same_v<WorkerJobQueue, T> 
+          || std::is_base_of_v<WorkerJob, std::remove_pointer_t<T>>
+  auto enqueuImpl(T task) noexcept -> void // werid formation for concept
   {
     auto startIdx = mNextWorker.fetch_add(1, std::memory_order_relaxed) % mThreadCount;
     for (std::uint32_t i = 0; i < mThreadCount; i++) {

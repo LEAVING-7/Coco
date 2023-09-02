@@ -10,10 +10,6 @@
 #include <variant>
 
 namespace coco {
-
-template <typename T = void>
-struct Task;
-
 enum class PromiseState : std::uint8_t {
   Inital = 0,
   NeedNotifyAtomic = 1,
@@ -23,6 +19,16 @@ enum class PromiseState : std::uint8_t {
 };
 
 struct PromiseBase {
+  struct CoroJob : WorkerJob {
+    CoroJob(std::coroutine_handle<> handle, WorkerJob::fn_type fn) noexcept : handle(handle), WorkerJob(fn) {}
+    static auto run(WorkerJob* job, void* args) noexcept -> void
+    {
+      auto coroJob = static_cast<CoroJob*>(job);
+      coroJob->handle.resume();
+    }
+    std::coroutine_handle<> handle;
+  };
+
   struct FinalAwaiter {
     auto await_ready() const noexcept -> bool { return false; }
     template <typename Promise>
@@ -36,7 +42,8 @@ struct PromiseBase {
         promise.mState.notify_one();
       } else if (state == PromiseState::NeedDetach) {
         handle.destroy();
-      } /* else if (state == PromiseState::NeedCancel) {
+      }
+      /* else if (state == PromiseState::NeedCancel) {
         // emtpy waiting list
         while (!promise.waitingLists.empty()) {
           auto job = promise.waitingLists.popFront();

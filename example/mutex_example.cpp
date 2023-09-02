@@ -1,7 +1,7 @@
 #include <coco/runtime.hpp>
 #include <coco/sync.hpp>
 
-static coco::Runtime rt(8);
+static coco::Runtime rt(coco::MT, 4);
 
 std::size_t counter = 0;
 
@@ -12,6 +12,7 @@ auto incTask(coco::sync::Mutex& mt) -> coco::Task<>
     counter += 1;
     mt.unlock();
   }
+  co_return;
 }
 
 auto sleepTask(coco::sync::Mutex& mt) -> coco::Task<>
@@ -20,6 +21,7 @@ auto sleepTask(coco::sync::Mutex& mt) -> coco::Task<>
   co_await mt.lock();
   co_await rt.sleep(2s);
   mt.unlock();
+  co_return;
 }
 
 auto main() -> int
@@ -33,15 +35,17 @@ auto main() -> int
     ::printf("counter: %zu\n", counter);
     assert(counter == 1000 * 100);
     co_return;
-  });
+  }());
 
   rt.block([]() -> coco::Task<> {
     coco::sync::Mutex mt;
     auto th = rt.spawn(sleepTask(mt));
+
     co_await mt.lock();
     ::puts("resume");
     mt.unlock();
+
     co_await th.join();
     co_return;
-  });
+  }());
 }

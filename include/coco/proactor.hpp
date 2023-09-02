@@ -6,9 +6,6 @@
 #include "coco/uring.hpp"
 #include "coco/worker_job.hpp"
 
-#include <set>
-#include <thread>
-
 namespace coco {
 class Proactor {
 public:
@@ -22,16 +19,31 @@ public:
   ~Proactor() = default;
 
   auto attachExecutor(Executor* executor) noexcept -> void { mExecutor = executor; }
-  auto execute(WorkerJobQueue&& queue) noexcept -> void { mExecutor->enqueue(std::move(queue), 0); }
+  auto execute(WorkerJobQueue&& queue) noexcept -> void
+  {
+    mExecutor->enqueue(std::move(queue), 0);
+    notify();
+  }
   auto execute(WorkerJobQueue&& queue, std::size_t count) noexcept -> void
   {
     mExecutor->enqueue(std::move(queue), count);
+    notify();
   }
-  auto execute(WorkerJob* job) noexcept -> void { mExecutor->enqueue(job); }
+  auto execute(WorkerJob* job) noexcept -> void
+  {
+    mExecutor->enqueue(job);
+    notify();
+  }
   auto addTimer(Instant time, WorkerJob* job) noexcept -> void { mTimerManager.addTimer(time, job); }
   auto deleteTimer(std::size_t jobId) noexcept -> void { mTimerManager.deleteTimer(jobId); }
 
-  auto notify() -> void { mUring.notify(); }
+  auto notify() -> void
+  {
+    bool expected = false;
+    if (mNotifyBlocked.compare_exchange_strong(expected, true)) {
+      mUring.notify();
+    }
+  }
   auto prepRecv(Token token, int fd, std::span<std::byte> buf, int flag = 0) -> void
   {
     mUring.prepRecv(token, fd, buf, flag);
@@ -52,7 +64,7 @@ public:
   auto prepCancel(Token token) -> void { mUring.prepCancel(token); }
   auto prepClose(Token token, int fd) -> void { mUring.prepClose(token, fd); }
 
-  auto wait(std::atomic_bool& notifying) -> WorkerJob*
+  auto wait() -> void
   {
     auto [jobs, count] = mTimerManager.processTimers();
     while (auto job = jobs.popFront()) {
@@ -60,27 +72,61 @@ public:
     }
     auto future = mTimerManager.nextInstant();
     auto duration = future - std::chrono::steady_clock::now();
+    if (mNotifyBlocked) {
+      submit(); // new notify here
+    } else {
+      submitWait(duration);
+    }
+    return;
+  }
+
+private:
+  template <typename Rep, typename Period>
+  auto submitWait(std::chrono::duration<Rep, Period> duration) -> void
+  {
     io_uring_cqe* cqe = nullptr;
     auto e = mUring.submitWait(cqe, duration);
     if (e == std::errc::stream_timeout) {
       // timeout
     } else if (e != std::errc(0)) {
-      // assert(false); // error occured
+      // error occured
     } else if (cqe != nullptr) {
       if (cqe->flags & IORING_CQE_F_MORE) {
-        notifying.store(false);
+        mNotifyBlocked.store(false);
       } else {
         auto job = (WorkerJob*)cqe->user_data;
         job->run(job, &cqe->res);
       }
       mUring.seen(cqe);
     }
-    return nullptr;
+  }
+
+  auto submit() -> void
+  {
+    auto e = mUring.submit();
+    if (e != std::errc(0)) {
+      assert(false); // error occured
+    }
+    std::uint32_t count = 0;
+    std::uint32_t head = 0;
+    io_uring_cqe* cqe = nullptr;
+    io_uring_for_each_cqe(mUring.uring(), head, cqe)
+    {
+      if (cqe->flags & IORING_CQE_F_MORE) {
+        mNotifyBlocked.store(false);
+      } else {
+        auto job = (WorkerJob*)cqe->user_data;
+        job->run(job, &cqe->res);
+      }
+      count++;
+    }
+    mUring.advance(count);
   }
 
 private:
   Executor* mExecutor;
   TimerManager mTimerManager{64};
   IoUring mUring{};
+  std::atomic_bool mNotifyBlocked{false};
 };
 } // namespace coco

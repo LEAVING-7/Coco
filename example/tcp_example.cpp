@@ -1,7 +1,7 @@
 #include <coco/net.hpp>
 #include <coco/runtime.hpp>
 
-static coco::Runtime rt(1);
+static coco::Runtime rt(coco::MT, 4);
 
 auto print(std::string_view msg, std::errc errc) -> void
 {
@@ -14,9 +14,11 @@ auto print(std::string_view msg, std::errc errc) -> void
 
 auto main() -> int
 {
-  auto value = rt.block([]() -> coco::Task<int> {
+  rt.block([]() -> coco::Task<> {
     using namespace coco::net;
+    ::puts("tcp example");
     auto server = rt.spawn([]() -> coco::Task<int> {
+      ::puts("server start");
       auto [listener, errc] = TcpListener::bind(SocketAddr(SocketAddrV4::localhost(2333)));
       if (errc != std::errc{0}) {
         print("bind error", errc);
@@ -41,11 +43,12 @@ auto main() -> int
         buf[n] = '\0';
         ::printf("server get: %s\n", buf.data());
       }
-
+      ::puts("server end");
       co_return 0;
     }());
 
     auto client = rt.spawn([]() -> coco::Task<> {
+      ::puts("client start");
       auto [client, errc] = co_await TcpStream::connect(SocketAddr(SocketAddrV4::localhost(2333)));
       if (errc != std::errc(0)) {
         print("connect error", errc);
@@ -63,12 +66,13 @@ auto main() -> int
         }
         co_await rt.sleep(std::chrono::seconds(1));
       }
+      ::puts("client end");
       co_return;
     }());
 
     co_await client.join();
-    // co_await server.join();  assert failed: server.join() is not awaitable
-    co_return 2333;
-  });
-  assert(value == 2333);
+    co_await server.join();
+    ::puts("everything done");
+    co_return;
+  }());
 }

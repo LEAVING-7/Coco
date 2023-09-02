@@ -1,10 +1,19 @@
 #pragma once
 #include "coco/__preclude.hpp"
 
-#include "mt_executor.hpp"
+#include "coco/inl_executor.hpp"
+#include "coco/mt_executor.hpp"
+
 #include <functional>
 
 namespace coco {
+enum class RuntimeType {
+  Inline,
+  Multi,
+};
+constexpr static RuntimeType MT = RuntimeType::Multi;
+constexpr static RuntimeType INL = RuntimeType::Inline;
+
 class Runtime {
   struct [[nodiscard]] CondJob : WorkerJob {
     CondJob(std::atomic_size_t* count, WorkerJob* nextJob) : mCount(count), mNextJob(nextJob), WorkerJob(&CondJob::run)
@@ -39,35 +48,6 @@ class Runtime {
     Duration mDuration;
   };
 
-public:
-  Runtime(std::size_t threadNum) : mExecutor(std::make_shared<MtExecutor>(threadNum)) {}
-
-  template <typename F, typename... Args>
-    requires std::invocable<F, Args...>
-  auto block(F&& fn, Args&&... args)
-  {
-    using result_t = std::invoke_result_t<F, Args...>;
-    static_assert(coco::IsTask<result_t>, "block function must return a task");
-
-    auto task = std::invoke(fn, std::forward<Args>(args)...);
-    auto& state = task.promise().mState;
-    CoroJob job(task.handle(), &CoroJob::run);
-    state = coco::PromiseState::NeedNotifyAtomic;
-
-    mExecutor.get()->enqueue(&job);
-    while (state != coco::PromiseState::Final) {
-      state.wait(coco::PromiseState::NeedNotifyAtomic);
-    }
-    return std::move(task.promise()).result();
-  }
-
-  template <typename Rep, typename Per>
-  [[nodiscard]] auto sleep(std::chrono::duration<Rep, Per> duration) -> Task<>
-  {
-    auto sleepTime = std::chrono::duration_cast<coco::Duration>(duration);
-    co_return co_await SleepAwaiter(sleepTime);
-  }
-
   template <typename TaskTupleTy>
   struct [[nodiscard]] WaitNAwaiter {
     constexpr WaitNAwaiter(std::size_t waiting, Executor* executor, TaskTupleTy&& tasks)
@@ -101,29 +81,6 @@ public:
     TaskTupleTy mTasks;
   };
 
-  template <TaskConcept... TasksTy>
-  [[nodiscard]] constexpr auto waitAll(TasksTy&&... tasks) -> decltype(auto)
-  {
-    auto tasksTuple = std::make_tuple(std::forward<TasksTy>(tasks)...);
-    constexpr auto taskCount = std::tuple_size_v<decltype(tasksTuple)>;
-    return WaitNAwaiter<std::tuple<TasksTy...>>(taskCount, mExecutor.get(), std::move(tasksTuple));
-  }
-
-  template <typename TasksTuple>
-  [[nodiscard]] constexpr auto waitN(std::size_t n, TasksTuple&& tuple) -> decltype(auto)
-  {
-    static_assert(n <= std::tuple_size_v<TasksTuple>, "n must be less than the task count");
-    return WaitNAwaiter<TasksTuple>(n, mExecutor.get(), std::move(tuple));
-  }
-
-  // FIXME: this function is not correct
-  template <TaskConcept... TasksTy>
-  [[nodiscard]] constexpr auto waitAny(TasksTy&&... tasks) -> decltype(auto)
-  {
-    auto tasksTuple = std::make_tuple(std::forward<TasksTy>(tasks)...);
-    return WaitNAwaiter<std::tuple<TasksTy...>>(1, mExecutor.get(), std::move(tasksTuple));
-  }
-
   struct [[nodiscard]] JoinAwaiter {
     JoinAwaiter(std::atomic<WorkerJob*>* done) : mDone(done) {}
     auto await_ready() const noexcept -> bool { return false; }
@@ -141,6 +98,48 @@ public:
     auto await_resume() const noexcept -> void {}
     std::atomic<WorkerJob*>* mDone;
   };
+
+public:
+  constexpr Runtime(RuntimeType type, std::size_t threadNum = 0) : mType(type)
+  {
+    if (type == RuntimeType::Inline) {
+      mExecutor = std::make_shared<InlExecutor>();
+    } else if (type == RuntimeType::Multi) {
+      mExecutor = std::make_shared<MtExecutor>(threadNum);
+    }
+  }
+
+  auto block(Task<> task) -> void { mExecutor->runMain(std::move(task)); }
+
+  template <typename Rep, typename Per>
+  [[nodiscard]] auto sleep(std::chrono::duration<Rep, Per> duration) -> Task<>
+  {
+    auto sleepTime = std::chrono::duration_cast<coco::Duration>(duration);
+    co_return co_await SleepAwaiter(sleepTime);
+  }
+
+  template <TaskConcept... TasksTy>
+  [[nodiscard]] constexpr auto waitAll(TasksTy&&... tasks) -> decltype(auto)
+  {
+    auto tasksTuple = std::make_tuple(std::forward<TasksTy>(tasks)...);
+    constexpr auto taskCount = std::tuple_size_v<decltype(tasksTuple)>;
+    return WaitNAwaiter<std::tuple<TasksTy...>>(taskCount, mExecutor.get(), std::move(tasksTuple));
+  }
+
+  template <typename TasksTuple>
+  [[nodiscard]] constexpr auto waitN(std::size_t n, TasksTuple&& tuple) -> decltype(auto)
+  {
+    static_assert(n <= std::tuple_size_v<TasksTuple>, "n must be less than the task count");
+    return WaitNAwaiter<TasksTuple>(n, mExecutor.get(), std::move(tuple));
+  }
+
+  // FIXME: this function is not correct
+  template <TaskConcept... TasksTy>
+  [[deprecated("function incorrect")]] constexpr auto waitAny(TasksTy&&... tasks) -> decltype(auto)
+  {
+    auto tasksTuple = std::make_tuple(std::forward<TasksTy>(tasks)...);
+    return WaitNAwaiter<std::tuple<TasksTy...>>(1, mExecutor.get(), std::move(tasksTuple));
+  }
 
   template <typename TaskTy>
   struct JoinHandle {
@@ -172,7 +171,7 @@ public:
 
   // !!! task must be done before block() function returns, otherwise it will cause memory leak
   template <TaskConcept TaskTy>
-  [[nodiscard]] constexpr auto spawnDetach(TaskTy&& task) -> decltype(auto)
+  constexpr auto spawnDetach(TaskTy&& task) -> void
   {
     auto& promise = task.promise();
     promise.mState.store(coco::PromiseState::NeedDetach);
@@ -181,6 +180,7 @@ public:
   }
 
 private:
-  std::shared_ptr<MtExecutor> mExecutor;
+  const RuntimeType mType;
+  std::shared_ptr<Executor> mExecutor;
 };
 } // namespace coco

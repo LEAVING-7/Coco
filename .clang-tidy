@@ -1,0 +1,8 @@
+---
+Checks: "clang-diagnostic-*,clang-analyzer-*,bugprone-*,misc-*,performance-*,portability-*,modernize-*,-bugprone-easily-swappable-parameters"
+WarningsAsErrors: ""
+HeaderFilterRegex: ""
+AnalyzeTemporaryDtors: false
+FormatStyle: .clang-format
+User: leaving
+---
