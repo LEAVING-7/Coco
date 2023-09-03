@@ -22,13 +22,18 @@ enum class TimerOpKind : std::uint8_t {
 struct TimerOp {
   Instant instant;
   union {
-    WorkerJob* job;    // add a timer
-    std::size_t jobId; // for delete a timer
+    WorkerJob* job;
+    std::size_t jobId;
   };
   TimerOpKind kind;
 };
 
-inline auto operator<(TimerOp const& lhs, TimerOp const& rhs) noexcept -> bool { return lhs.instant < rhs.instant; }
+struct TimerItem {
+  Instant instant;
+  WorkerJob* job;
+};
+
+inline auto operator<(TimerItem const& lhs, TimerItem const& rhs) noexcept -> bool { return lhs.instant < rhs.instant; }
 
 class TimerManager {
 public:
@@ -47,6 +52,6 @@ private:
   std::mutex mPendingJobsMt;
   std::queue<TimerOp> mPendingJobs;
   std::unordered_set<std::size_t> mDeleted;
-  util::Heap<TimerOp, 4> mTimers;
+  util::Heap<TimerItem, 4> mTimers;
 };
 } // namespace coco

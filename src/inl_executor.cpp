@@ -21,7 +21,7 @@ auto InlExecutor::loop() -> void
     auto currState = mState;
     if (currState == State::Waiting) {
       mProactor->wait();
-      if (mMainTaskState->load() == PromiseState::Final) {
+      if (mMainTaskState->load() == JobState::Final && mTaskQueue.empty()) {
         mState = State::Stop;
       } else {
         mState = State::Waiting;
@@ -29,7 +29,7 @@ auto InlExecutor::loop() -> void
       mState = State::Executing;
     } else if (currState == State::Executing) {
       processTasks();
-      if (mMainTaskState->load() == PromiseState::Final) {
+      if (mMainTaskState->load() == JobState::Final && mTaskQueue.empty()) {
         mState = State::Stop;
       } else {
         mState = State::Waiting;
@@ -44,9 +44,9 @@ auto InlExecutor::loop() -> void
 auto InlExecutor::processTasks() -> void
 {
   while (auto job = mTaskQueue.popFront()) {
-    job->run(job, nullptr);
+    runJob(job, nullptr);
   }
-  if (mMainTaskState->load() == PromiseState::Final) {
+  if (mMainTaskState->load() == JobState::Final) {
     mState = State::Stop;
   }
 }
@@ -58,7 +58,7 @@ auto InlExecutor::enqueue(WorkerJob* handle) noexcept -> void { mTaskQueue.pushB
 auto InlExecutor::runMain(Task<> task) -> void
 {
   Proactor::get().attachExecutor(this);
-  mMainTaskState = &task.promise().mState;
+  mMainTaskState = &task.promise().getState();
   enqueue(task.promise().getThisJob());
   processTasks();
   loop();

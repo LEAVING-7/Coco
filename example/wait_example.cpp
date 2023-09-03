@@ -28,9 +28,13 @@ auto main() -> int
   rt.block([]() -> coco::Task<> {
     auto [handle, id] = co_await coco::ThisTask();
     ::printf("main task %p id = %zu\n", handle.address(), id);
+    ::puts("====================");
+    // co_await rt.waitAll(taskA(), taskB(), taskC());
+    // ::puts("====================");
+    co_await rt.waitAny(taskA(), taskB());
+    ::puts("====================");
 
-    co_await rt.waitAll(taskA(), taskB(), taskC());
-    ::puts("everything done");
+    std::this_thread::sleep_for(2s);
     co_return;
   }());
 }

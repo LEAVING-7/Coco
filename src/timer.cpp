@@ -33,14 +33,14 @@ auto TimerManager::processTimers() -> std::pair<WorkerJobQueue, std::size_t>
     }
     switch (op.kind) {
     case TimerOpKind::Add: {
-      mTimers.insert(std::move(op));
+      mTimers.insert({op.instant, op.job});
     } break;
     case TimerOpKind::Delete: {
       mDeleted.insert(op.jobId);
     } break;
     }
   }
-  
+
   WorkerJobQueue jobs;
   std::size_t count = 0;
   auto now = std::chrono::steady_clock::now();

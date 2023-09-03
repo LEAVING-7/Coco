@@ -36,6 +36,7 @@ public:
   }
   auto addTimer(Instant time, WorkerJob* job) noexcept -> void { mTimerManager.addTimer(time, job); }
   auto deleteTimer(std::size_t jobId) noexcept -> void { mTimerManager.deleteTimer(jobId); }
+  auto processTimers() { return mTimerManager.processTimers(); }
 
   auto notify() -> void
   {
@@ -68,7 +69,6 @@ public:
   {
     mUring.prepWrite(token, fd, buf, offset);
   }
-
   auto prepCancel(int fd) -> void { mUring.prepCancel(fd); }
   auto prepCancel(Token token) -> void { mUring.prepCancel(token); }
   auto prepClose(Token token, int fd) -> void { mUring.prepClose(token, fd); }
@@ -77,12 +77,12 @@ public:
   {
     auto [jobs, count] = mTimerManager.processTimers();
     while (auto job = jobs.popFront()) {
-      job->run(job, nullptr);
+      runJob(job, nullptr);
     }
     auto future = mTimerManager.nextInstant();
     auto duration = future - std::chrono::steady_clock::now();
     if (mNotifyBlocked) {
-      submit(); // new notify here
+      submit();
     } else {
       submitWait(duration);
     }
@@ -104,7 +104,7 @@ private:
         mNotifyBlocked.store(false);
       } else {
         auto job = (WorkerJob*)cqe->user_data;
-        job->run(job, &cqe->res);
+        runJob(job, &cqe->res);
       }
       mUring.seen(cqe);
     }
@@ -125,7 +125,7 @@ private:
         mNotifyBlocked.store(false);
       } else {
         auto job = (WorkerJob*)cqe->user_data;
-        job->run(job, &cqe->res);
+        runJob(job, &cqe->res);
       }
       count++;
     }

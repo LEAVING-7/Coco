@@ -29,12 +29,39 @@ class Runtime {
       }
       delete condJob;
     }
+
     std::atomic_size_t* mCount;
     WorkerJob* mNextJob;
   };
 
+  struct AnyJobData {
+    std::atomic<WorkerJob*> mNextJob;
+    int padding[50];
+  };
+
+  struct [[nodiscard]] AnyJob : WorkerJob {
+    AnyJob(std::shared_ptr<AnyJobData> data)
+        : mData(std::move(data)), mExpected(data->mNextJob.load()), WorkerJob(&AnyJob::run)
+    {
+    }
+    static auto run(WorkerJob* job, void*) noexcept -> void
+    {
+      auto anyJob = static_cast<AnyJob*>(job);
+      auto expected = anyJob->mExpected;
+      auto& nextJob = anyJob->mData->mNextJob;
+      if (nextJob.compare_exchange_strong(expected, &emptyJob)) {
+        ::puts("acquire next job success");
+        Proactor::get().execute(expected); // acquire next job success
+      }
+      delete anyJob;
+    }
+    WorkerJob* mExpected;
+    std::shared_ptr<AnyJobData> mData;
+  };
+
   struct [[nodiscard]] SleepAwaiter {
     SleepAwaiter(Duration duration) : mDuration(duration) {}
+
     auto await_ready() const noexcept -> bool { return false; }
     template <typename Promise>
     auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
@@ -59,18 +86,15 @@ class Runtime {
     template <typename Promise>
     auto await_suspend(std::coroutine_handle<Promise> handle) -> void
     {
-      std::vector<std::atomic<PromiseState>*> jobConds;
       auto nextJob = handle.promise().getThisJob();
 
-      auto setupTask = [&](auto&& task) { jobConds.push_back(&task.promise().mState); };
-      std::apply([&](auto&&... tuple) { (setupTask(tuple), ...); }, mTasks);
-
-      auto addWaitingJob = [&](auto&& task) { task.promise().addWaitingJob(new CondJob(&mWaitingCount, nextJob)); };
-
-      std::apply([&](auto&&... tuple) { (addWaitingJob(tuple), ...); }, mTasks);
-
-      assert(jobConds.size() == std::tuple_size_v<TaskTupleTy> &&
-             "the number of tasks must be equal to the number of conditions");
+      auto setNextJob = [&](auto&& task) {
+        auto job = new CondJob(&mWaitingCount, nextJob);
+        job->action.store(JobAction::OneShot, std::memory_order_relaxed);
+        task.promise().setNextJob(job);
+        task.promise().setState(JobState::Ready);
+      };
+      std::apply([&](auto&&... tuple) { (setNextJob(tuple), ...); }, mTasks);
 
       auto runTask = [this](auto&& task) { mExecutor->enqueue(task.promise().getThisJob()); };
       std::apply([&](auto&&... tuple) { (runTask(tuple), ...); }, mTasks);
@@ -78,6 +102,57 @@ class Runtime {
     auto await_resume() const noexcept -> void {}
 
     std::atomic_size_t mWaitingCount;
+    Executor* mExecutor;
+    TaskTupleTy mTasks;
+  };
+
+  template <typename TaskTupleTy>
+  struct [[nodiscard]] WaitAnyAwaiter {
+    constexpr WaitAnyAwaiter(Executor* executor, TaskTupleTy&& tasks) : mExecutor(executor), mTasks(std::move(tasks)) {}
+
+    auto await_ready() const noexcept -> bool { return false; }
+    template <typename Promise>
+    auto await_suspend(std::coroutine_handle<Promise> handle) -> void
+    {
+      auto nextJob = handle.promise().getThisJob();
+      mAnyData = std::make_shared<AnyJobData>(nextJob);
+      auto setupJobs = [&](auto&& task) {
+        auto job = new AnyJob(mAnyData);
+        job->action.store(JobAction::OneShot, std::memory_order_relaxed);
+        task.promise().setNextJob(job);
+        task.promise().setState(JobState::Ready);
+      };
+      std::apply([&](auto&&... tuple) { (setupJobs(tuple), ...); }, mTasks);
+      auto runTask = [this](auto&& task) { mExecutor->enqueue(task.promise().getThisJob()); };
+      std::apply([&](auto&&... tuple) { (runTask(tuple), ...); }, mTasks);
+    }
+
+    auto await_resume() noexcept -> void
+    {
+      // try to do cancelation
+      auto doCancel = [&](auto&& task) mutable {
+        auto& state = task.promise().getState();
+        auto& action = task.promise().getAction();
+
+        JobState expected = JobState::Ready;
+        if (!state.compare_exchange_strong(expected, JobState::Cancel)) {
+          // cancel failed
+          if (expected == JobState::Executing) {
+            JobAction expected = JobAction::None;
+            if (action.compare_exchange_strong(expected, JobAction::Detach)) {
+              [[maybe_unused]] auto handle = task.take(); // give up ownership
+            } else if (action == JobAction::Final) {
+              // do nothing, task can be destroyed safely
+            }
+          }
+        } else if (expected != JobState::Final) {
+          // cancel success, canceled task won't be executed
+          ::printf("cancel job %p id = %u\n", task.promise().getThisJob(), task.promise().getState().load());
+        }
+      };
+      std::apply([&](auto&&... tuple) { (doCancel(tuple), ...); }, mTasks);
+    }
+    std::shared_ptr<AnyJobData> mAnyData;
     Executor* mExecutor;
     TaskTupleTy mTasks;
   };
@@ -97,6 +172,7 @@ class Runtime {
       }
     }
     auto await_resume() const noexcept -> void {}
+
     std::atomic<WorkerJob*>* mDone;
   };
 
@@ -133,7 +209,7 @@ public:
     JoinHandle(TaskTy&& task) noexcept
         : mTask(std::forward<TaskTy>(task)), mDone(std::make_unique<std::atomic<WorkerJob*>>(&emptyJob))
     {
-      mTask.promise().addContinueJob(mDone.get());
+      mTask.promise().setListening(this->mDone.get());
       Proactor::get().execute(mTask.promise().getThisJob());
     }
     JoinHandle(JoinHandle&& other) noexcept : mDone(std::move(other.mDone)), mTask(std::move(other.mTask)){};
@@ -147,7 +223,6 @@ public:
     }
     [[nodiscard]] auto join() { return JoinAwaiter(mDone.get()); }
 
-    // atomic variable cannot be moved, so I use unique_ptr to wrap it
     std::unique_ptr<std::atomic<WorkerJob*>> mDone;
     TaskTy mTask;
   };
@@ -188,7 +263,7 @@ public:
   [[deprecated("function incorrect")]] constexpr auto waitAny(TasksTy&&... tasks) -> decltype(auto)
   {
     auto tasksTuple = std::make_tuple(std::forward<TasksTy>(tasks)...);
-    return WaitNAwaiter<std::tuple<TasksTy...>>(1, mExecutor.get(), std::move(tasksTuple));
+    return WaitAnyAwaiter<std::tuple<TasksTy...>>(mExecutor.get(), std::move(tasksTuple));
   }
 
   template <TaskConcept TaskTy>
@@ -202,7 +277,7 @@ public:
   constexpr auto spawnDetach(TaskTy&& task) -> void
   {
     auto& promise = task.promise();
-    promise.mState.store(coco::PromiseState::NeedDetach);
+    promise.setAction(JobAction::Detach);
     Proactor::get().execute(promise.getThisJob());
     [[maybe_unused]] auto handel = task.take();
   }

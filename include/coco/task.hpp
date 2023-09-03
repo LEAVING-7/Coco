@@ -10,14 +10,6 @@
 #include <variant>
 
 namespace coco {
-enum class PromiseState : std::uint8_t {
-  Inital = 0,
-  NeedNotifyAtomic = 1,
-  NeedDetach = 2,
-  NeedCancel = 3,
-  Final,
-};
-
 struct PromiseBase {
   struct CoroJob : WorkerJob {
     CoroJob(std::coroutine_handle<> handle, WorkerJob::fn_type fn) noexcept : handle(handle), WorkerJob(fn) {}
@@ -37,29 +29,27 @@ struct PromiseBase {
       assert(handle.done() && "handle should done here");
       auto& promise = handle.promise();
 
-      auto state = promise.mState.exchange(PromiseState::Final);
-      if (state == PromiseState::NeedNotifyAtomic) {
-        promise.mState.notify_one();
-      } else if (state == PromiseState::NeedDetach) {
-        handle.destroy();
-      }
-      /* else if (state == PromiseState::NeedCancel) {
-        // emtpy waiting list
-        while (!promise.waitingLists.empty()) {
-          auto job = promise.waitingLists.popFront();
-        }
-        return;
-      } */
-
-      if (!promise.mWaitingList.empty()) {
-        Proactor::get().execute(std::move(promise.mWaitingList));
+      if (promise.mNextJob != nullptr) {
+        Proactor::get().execute(promise.mNextJob);
       }
 
-      if (promise.mContinueJob != nullptr) {
-        auto continueJob = promise.mContinueJob->exchange(nullptr);
+      if (promise.mListening != nullptr) {
+        auto continueJob = promise.mListening->exchange(nullptr);
         if (continueJob != &emptyJob) {
           Proactor::get().execute(continueJob);
         }
+      }
+
+      auto lastState = promise.getState().exchange(JobState::Final);
+      assert(lastState != JobState::Cancel && "canceled job should not be executed");
+
+      auto lastAction = promise.getAction().exchange(JobAction::Final);
+      if (lastAction == JobAction::Detach) {
+        handle.destroy();
+      } else if (lastAction == JobAction::NotifyState) {
+        promise.getState().notify_one();
+      } else if (lastAction == JobAction::NotifyAction) {
+        promise.getAction().notify_one();
       }
     }
     auto await_resume() noexcept -> void {}
@@ -69,19 +59,24 @@ struct PromiseBase {
   auto unhandled_exception() noexcept -> void { mExceptionPtr = std::current_exception(); }
 
   auto setCoHandle(std::coroutine_handle<> handle) noexcept -> void { mCurrentJob.handle = handle; }
-  auto addWaitingJob(WorkerJob* job) noexcept -> void { mWaitingList.pushBack(job); }
   auto getThisJob() noexcept -> WorkerJob* { return &mCurrentJob; }
-  auto addContinueJob(std::atomic<WorkerJob*>* job) noexcept -> void { mContinueJob = job; }
+  auto setNextJob(WorkerJob* next) noexcept -> void { mNextJob = next; }
+  auto setListening(std::atomic<WorkerJob*>* continueJob) -> void { mListening = continueJob; }
+
+  auto setState(JobState state) -> void { mCurrentJob.state.store(state); }
+  auto getState() noexcept -> std::atomic<JobState>& { return mCurrentJob.state; }
+
+  auto setAction(JobAction action) -> void { mCurrentJob.action = action; }
+  auto getAction() noexcept -> std::atomic<JobAction>& { return mCurrentJob.action; }
 
   CoroJob mCurrentJob{nullptr, &CoroJob::run};
-  std::atomic<WorkerJob*>* mContinueJob{nullptr}; // used for join
-  WorkerJobQueue mWaitingList;                    // TODO 8 bytes single linked list
+  WorkerJob* mNextJob{nullptr};                 // TODO it can be subsituted by WokerJob::next
+  std::atomic<WorkerJob*>* mListening{nullptr}; // used for continuation
   std::exception_ptr mExceptionPtr;
 };
 
 template <typename T>
 struct Promise final : PromiseBase {
-  auto cancel() noexcept -> void { mState.store(PromiseState::NeedCancel); }
   auto get_return_object() noexcept -> Task<T>;
   auto return_value(T value) noexcept -> void { std::construct_at(std::addressof(mRetVal), std::move(value)); }
   auto result() const& -> T const&
@@ -100,12 +95,10 @@ struct Promise final : PromiseBase {
   }
 
   T mRetVal;
-  std::atomic<PromiseState> mState = PromiseState::Inital;
 };
 
 template <>
 struct Promise<void> : PromiseBase {
-  auto cancel() noexcept -> void { mState.store(PromiseState::NeedCancel); }
   auto get_return_object() noexcept -> Task<void>;
   auto return_void() noexcept -> void {}
   auto result() const -> void
@@ -115,8 +108,6 @@ struct Promise<void> : PromiseBase {
     }
     return;
   }
-
-  std::atomic<PromiseState> mState = PromiseState::Inital;
 };
 
 template <typename T>
@@ -172,7 +163,7 @@ public:
     template <typename Promise>
     auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
     {
-      mHandle.promise().addWaitingJob(handle.promise().getThisJob());
+      mHandle.promise().setNextJob(handle.promise().getThisJob());
       Proactor::get().execute(mHandle.promise().getThisJob());
     }
     coroutine_handle_type mHandle;

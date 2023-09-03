@@ -54,7 +54,7 @@ auto Worker::processTasks() -> void
   auto jobs = std::move(mTaskQueue);
   mQueueMt.unlock();
   while (auto job = jobs.popFront()) {
-    job->run(job, nullptr);
+    runJob(job, nullptr);
   }
 }
 auto Worker::pushTask(WorkerJob* job) -> void
@@ -148,11 +148,11 @@ auto MtExecutor::enqueue(WorkerJobQueue&& queue, std::size_t count) noexcept -> 
 }
 auto MtExecutor::runMain(Task<> task) -> void
 {
-  auto& state = task.promise().mState;
-  state = coco::PromiseState::NeedNotifyAtomic;
+  auto& action = task.promise().getAction();
+  action = JobAction::NotifyAction;
   this->enqueue(task.promise().getThisJob());
-  while (state != coco::PromiseState::Final) {
-    state.wait(coco::PromiseState::NeedNotifyAtomic);
+  while (action != JobAction::Final) {
+    action.wait(JobAction::NotifyAction);
   }
 };
 
