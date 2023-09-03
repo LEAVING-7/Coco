@@ -29,15 +29,9 @@ struct PromiseBase {
       assert(handle.done() && "handle should done here");
       auto& promise = handle.promise();
 
-      if (promise.mNextJob != nullptr) {
-        Proactor::get().execute(promise.mNextJob);
-      }
-
-      if (promise.mListening != nullptr) {
-        auto continueJob = promise.mListening->exchange(nullptr);
-        if (continueJob != &emptyJob) {
-          Proactor::get().execute(continueJob);
-        }
+      auto next = promise.mNextJob.exchange(nullptr);
+      if (next != &emptyJob && next != nullptr) {
+        Proactor::get().execute(next);
       }
 
       auto lastState = promise.getState().exchange(JobState::Final);
@@ -58,20 +52,20 @@ struct PromiseBase {
   auto final_suspend() noexcept -> FinalAwaiter { return {}; }
   auto unhandled_exception() noexcept -> void { mExceptionPtr = std::current_exception(); }
 
-  auto setCoHandle(std::coroutine_handle<> handle) noexcept -> void { mCurrentJob.handle = handle; }
-  auto getThisJob() noexcept -> WorkerJob* { return &mCurrentJob; }
+  auto setCoHandle(std::coroutine_handle<> handle) noexcept -> void { mThisJob.handle = handle; }
+  auto getThisJob() noexcept -> WorkerJob* { return &mThisJob; }
+
   auto setNextJob(WorkerJob* next) noexcept -> void { mNextJob = next; }
-  auto setListening(std::atomic<WorkerJob*>* continueJob) -> void { mListening = continueJob; }
+  auto getNextJob() noexcept -> std::atomic<WorkerJob*>& { return mNextJob; }
 
-  auto setState(JobState state) -> void { mCurrentJob.state.store(state); }
-  auto getState() noexcept -> std::atomic<JobState>& { return mCurrentJob.state; }
+  auto setState(JobState state) -> void { mThisJob.state.store(state); }
+  auto getState() noexcept -> std::atomic<JobState>& { return mThisJob.state; }
 
-  auto setAction(JobAction action) -> void { mCurrentJob.action = action; }
-  auto getAction() noexcept -> std::atomic<JobAction>& { return mCurrentJob.action; }
+  auto setAction(JobAction action) -> void { mThisJob.action = action; }
+  auto getAction() noexcept -> std::atomic<JobAction>& { return mThisJob.action; }
 
-  CoroJob mCurrentJob{nullptr, &CoroJob::run};
-  WorkerJob* mNextJob{nullptr};                 // TODO it can be subsituted by WokerJob::next
-  std::atomic<WorkerJob*>* mListening{nullptr}; // used for continuation
+  CoroJob mThisJob{nullptr, &CoroJob::run};
+  std::atomic<WorkerJob*> mNextJob{nullptr};
   std::exception_ptr mExceptionPtr;
 };
 
@@ -139,7 +133,7 @@ public:
     mHandle = std::exchange(other.mHandle, nullptr);
     return *this;
   };
-  ~Task() noexcept { destroy(); }
+  constexpr ~Task() noexcept { destroy(); }
 
   auto operator==(Task const& other) -> bool { return mHandle == other.mHandle; }
   auto done() const noexcept -> bool { return mHandle.done(); }

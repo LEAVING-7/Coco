@@ -15,6 +15,7 @@ inline auto genJobId() -> std::size_t
 enum class JobState : std::uint16_t {
   Ready,
   Executing,
+  Pending,
   Cancel,
   Final,
 };
@@ -57,11 +58,7 @@ inline auto runJob(WorkerJob* job, void* args) noexcept -> void
       };
     }
   } else {
-    if (action == JobAction::OneShot) {
-      ::puts("cancel one shot job");
-      delete job;
-    }
-    ::printf("canceled job %p id = %u state = %d\n", job, job->id, static_cast<int>(expected));
+    
   }
 }
 
