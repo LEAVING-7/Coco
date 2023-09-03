@@ -50,16 +50,16 @@ auto InlExecutor::processTasks() -> void
     mState = State::Stop;
   }
 }
-auto InlExecutor::enqueue(WorkerJobQueue&& queue, std::size_t count) noexcept -> void
+auto InlExecutor::execute(WorkerJobQueue&& queue, std::size_t count, ExeOpt opt) noexcept -> void
 {
   mTaskQueue.append(std::move(queue));
 }
-auto InlExecutor::enqueue(WorkerJob* handle) noexcept -> void { mTaskQueue.pushBack(handle); }
+auto InlExecutor::execute(WorkerJob* handle, ExeOpt opt) noexcept -> void { mTaskQueue.pushBack(handle); }
 auto InlExecutor::runMain(Task<> task) -> void
 {
   Proactor::get().attachExecutor(this);
   mMainTaskState = &task.promise().getState();
-  enqueue(task.promise().getThisJob());
+  execute(task.promise().getThisJob());
   processTasks();
   loop();
 }

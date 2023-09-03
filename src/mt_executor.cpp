@@ -133,16 +133,23 @@ auto MtExecutor::join() noexcept -> void
   }
 }
 
-auto MtExecutor::enqueue(WorkerJob* job) noexcept -> void { enqueuImpl(job); }
-auto MtExecutor::enqueue(WorkerJobQueue&& queue, std::size_t count) noexcept -> void
+auto MtExecutor::execute(WorkerJob* job, ExeOpt opt) noexcept -> void
+{
+  if (opt == ExeOpt::Balance) {
+    balanceEnqueue(job, true);
+  } else if (opt == ExeOpt::OneThread) {
+    balanceEnqueue(job, false);
+  }
+}
+auto MtExecutor::execute(WorkerJobQueue&& queue, std::size_t count, ExeOpt opt) noexcept -> void
 {
   if (count == 0) {
-    enqueuImpl(std::move(queue));
+    balanceEnqueue(std::move(queue), true);
   } else {
     while (!queue.empty()) {
       auto const perThread = count / mThreadCount;
       auto perThreadJobs = queue.popFront(perThread);
-      enqueuImpl(std::move(perThreadJobs));
+      balanceEnqueue(std::move(perThreadJobs), true);
     }
   }
 }
@@ -150,7 +157,7 @@ auto MtExecutor::runMain(Task<> task) -> void
 {
   auto& action = task.promise().getAction();
   action = JobAction::NotifyAction;
-  this->enqueue(task.promise().getThisJob());
+  this->execute(task.promise().getThisJob());
   while (action != JobAction::Final) {
     action.wait(JobAction::NotifyAction);
   }

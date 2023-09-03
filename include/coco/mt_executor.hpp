@@ -89,17 +89,18 @@ public:
   }
   auto requestStop() noexcept -> void;
   auto join() noexcept -> void;
-  auto enqueue(WorkerJob* job) noexcept -> void override;
-  auto enqueue(WorkerJobQueue&& queue, std::size_t count) noexcept -> void override;
+  auto execute(WorkerJob* job, ExeOpt opt = ExeOpt::Balance) noexcept -> void override;
+  auto execute(WorkerJobQueue&& queue, std::size_t count, ExeOpt opt = ExeOpt::Balance) noexcept -> void override;
   auto runMain(Task<> task) -> void override;
 
 private:
   template <typename T>
-    requires std::is_same_v<WorkerJobQueue, T> 
-          || std::is_base_of_v<WorkerJob, std::remove_pointer_t<T>>
-  auto enqueuImpl(T task) noexcept -> void // werid formation for concept
+    requires std::is_same_v<WorkerJobQueue, T> || std::is_base_of_v<WorkerJob, std::remove_pointer_t<T>>
+                                                auto balanceEnqueue(T task, bool incNext) noexcept
+             -> void // werid formation for concept
   {
-    auto startIdx = mNextWorker.fetch_add(1, std::memory_order_relaxed) % mThreadCount;
+    auto nextIdx = incNext ? mNextWorker.fetch_add(1, std::memory_order_relaxed) : mNextWorker.load(std::memory_order_relaxed);
+    auto startIdx = nextIdx % mThreadCount;
     for (std::uint32_t i = 0; i < mThreadCount; i++) {
       auto const idx = (startIdx + i) < mThreadCount ? (startIdx + i) : (startIdx + i - mThreadCount);
       if (mWorkers[idx]->tryEnqeue(task)) {

@@ -19,19 +19,19 @@ public:
   ~Proactor() = default;
 
   auto attachExecutor(Executor* executor) noexcept -> void { mExecutor = executor; }
-  auto execute(WorkerJobQueue&& queue) noexcept -> void
+  auto execute(WorkerJobQueue&& queue, ExeOpt opt = ExeOpt::Balance) noexcept -> void
   {
-    mExecutor->enqueue(std::move(queue), 0);
+    mExecutor->execute(std::move(queue), 0, opt);
     notify();
   }
-  auto execute(WorkerJobQueue&& queue, std::size_t count) noexcept -> void
+  auto execute(WorkerJobQueue&& queue, std::size_t count, ExeOpt opt = ExeOpt::Balance) noexcept -> void
   {
-    mExecutor->enqueue(std::move(queue), count);
+    mExecutor->execute(std::move(queue), count, opt);
     notify();
   }
-  auto execute(WorkerJob* job) noexcept -> void
+  auto execute(WorkerJob* job, ExeOpt opt = ExeOpt::Balance) noexcept -> void
   {
-    mExecutor->enqueue(job);
+    mExecutor->execute(job, opt);
     notify();
   }
   auto addTimer(Instant time, WorkerJob* job) noexcept -> void { mTimerManager.addTimer(time, job); }

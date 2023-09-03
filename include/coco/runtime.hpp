@@ -74,7 +74,7 @@ class Runtime {
         job->mSelf = task.handle();
       };
       std::apply([&](auto&&... tuple) { (setupJobs(tuple), ...); }, mTasks);
-      auto runTask = [this](auto&& task) { mExecutor->enqueue(task.promise().getThisJob()); };
+      auto runTask = [this](auto&& task) { mExecutor->execute(task.promise().getThisJob()); };
       std::apply([&](auto&&... tuple) { (runTask(tuple), ...); }, mTasks);
       auto takeAll = [this](auto&& task) {
         [[maybe_unused]] auto handle = task.take(); // give up ownership

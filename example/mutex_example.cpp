@@ -18,13 +18,16 @@ auto incTask(coco::sync::Mutex& mt) -> coco::Task<>
 auto main() -> int
 {
   rt.block([]() -> coco::Task<> {
+    auto now = std::chrono::steady_clock::now();
     auto mt = coco::sync::Mutex();
-    auto ths = std::vector<coco::JoinHandle<coco::Task<>>>(4);
+    auto ths = std::vector<coco::JoinHandle<coco::Task<>>>(6);
     for (int i = 0; i < ths.size(); i++) {
       ths[i] = rt.spawn(incTask(mt));
     }
     co_await rt.waitAll(ths);
     ::printf("counter = %zu\n", counter);
+    ::printf("time = %zu\n",
+             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - now).count());
     co_return;
   }());
 }

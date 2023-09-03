@@ -58,7 +58,6 @@ inline auto runJob(WorkerJob* job, void* args) noexcept -> void
       };
     }
   } else {
-    
   }
 }
 
@@ -68,13 +67,18 @@ inline WorkerJob emptyJob{emptyFn};
 template <typename T = void>
 struct Task;
 
+enum class ExeOpt {
+  Balance,
+  OneThread,
+};
+
 class Executor {
 public:
   Executor() = default;
   virtual ~Executor() noexcept = default;
 
-  virtual auto enqueue(WorkerJobQueue&& queue, std::size_t count) noexcept -> void = 0;
-  virtual auto enqueue(WorkerJob* handle) noexcept -> void = 0;
+  virtual auto execute(WorkerJobQueue&& queue, std::size_t count, ExeOpt opt) noexcept -> void = 0;
+  virtual auto execute(WorkerJob* handle, ExeOpt opt) noexcept -> void = 0;
   virtual auto runMain(Task<> task) -> void = 0;
 };
 } // namespace coco

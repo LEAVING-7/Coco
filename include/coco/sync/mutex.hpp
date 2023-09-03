@@ -45,7 +45,7 @@ public:
     }
     auto job = mWaitQueue.popFront();
     mQueueMt.unlock();
-    Proactor::get().execute(job);
+    Proactor::get().execute(job, ExeOpt::OneThread);
   }
 
 private:
