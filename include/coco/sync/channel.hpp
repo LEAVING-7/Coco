@@ -72,16 +72,20 @@ auto ChannelReadAwaiter<T, N>::await_suspend(std::coroutine_handle<Promise> hand
   }
   if (mChannel.mBuffer.empty()) {
     mChannel.mReaders.pushBack(handle.promise().getThisJob());
-    while (auto job = mChannel.mWriter.popFront()) {
-      Proactor::get().execute(std::move(job));
+    WorkerJobQueue tmp;
+    for (int i = 0; i < mChannel.mBuffer.size() && !mChannel.mWriter.empty(); i++) {
+      tmp.pushBack(mChannel.mWriter.popFront());
     }
+    Proactor::get().execute(std::move(tmp), ExeOpt::PreferInOne);
     return true;
   } else {
     mVal = mChannel.mBuffer.pop();
     assert(mVal.has_value());
-    while (auto job = mChannel.mWriter.popFront()) {
-      Proactor::get().execute(std::move(job));
+    WorkerJobQueue tmp;
+    for (int i = 0; i < mChannel.mBuffer.size() && !mChannel.mWriter.empty(); i++) {
+      tmp.pushBack(mChannel.mWriter.popFront());
     }
+    Proactor::get().execute(std::move(tmp), ExeOpt::PreferInOne);
     return false;
   }
 }
@@ -112,16 +116,20 @@ auto ChannelWriteAwaiter<T, N>::await_suspend(std::coroutine_handle<Promise> han
   }
   if (mChannel.mBuffer.full()) {
     mChannel.mWriter.pushBack(handle.promise().getThisJob());
-    while (auto job = mChannel.mReaders.popFront()) {
-      Proactor::get().execute(std::move(job));
+    WorkerJobQueue tmp;
+    for (int i = 0; i < mChannel.mBuffer.size() && !mChannel.mReaders.empty(); i++) {
+      tmp.pushBack(mChannel.mReaders.popFront());
     }
+    Proactor::get().execute(std::move(tmp), ExeOpt::PreferInOne);
     return true;
   } else {
     mChannel.mBuffer.push(std::move(*mVal));
     mVal = nullptr;
-    while (auto job = mChannel.mReaders.popFront()) {
-      Proactor::get().execute(std::move(job));
+    WorkerJobQueue tmp;
+    for (int i = 0; i < mChannel.mBuffer.size() && !mChannel.mReaders.empty(); i++) {
+      tmp.pushBack(mChannel.mReaders.popFront());
     }
+    Proactor::get().execute(std::move(tmp), ExeOpt::PreferInOne);
     return false;
   }
 }

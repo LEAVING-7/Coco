@@ -41,8 +41,9 @@ public:
     return true;
   }
 
-  auto empty() noexcept -> bool { return mSize == 0; }
-  auto full() noexcept -> bool { return mSize == N; }
+  auto size() const noexcept -> std::uint32_t { return mSize; }
+  auto empty() const noexcept -> bool { return mSize == 0; }
+  auto full() const noexcept -> bool { return mSize == N; }
 
 private:
   std::array<T, N> mData;
