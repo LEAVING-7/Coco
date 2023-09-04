@@ -99,7 +99,8 @@ private:
                                                 auto balanceEnqueue(T task, bool incNext) noexcept
              -> void // werid formation for concept
   {
-    auto nextIdx = incNext ? mNextWorker.fetch_add(1, std::memory_order_relaxed) : mNextWorker.load(std::memory_order_relaxed);
+    auto nextIdx =
+        incNext ? mNextWorker.fetch_add(1, std::memory_order_relaxed) : mNextWorker.load(std::memory_order_relaxed);
     auto startIdx = nextIdx % mThreadCount;
     for (std::uint32_t i = 0; i < mThreadCount; i++) {
       auto const idx = (startIdx + i) < mThreadCount ? (startIdx + i) : (startIdx + i - mThreadCount);

@@ -74,14 +74,20 @@ class Runtime {
         job->mSelf = task.handle();
       };
       std::apply([&](auto&&... tuple) { (setupJobs(tuple), ...); }, mTasks);
-      auto runTask = [this](auto&& task) { mExecutor->execute(task.promise().getThisJob()); };
+      auto runTask = [this](auto&& task) { mExecutor->execute(task.promise().getThisJob(), ExeOpt::Balance); };
       std::apply([&](auto&&... tuple) { (runTask(tuple), ...); }, mTasks);
       auto takeAll = [this](auto&& task) {
         [[maybe_unused]] auto handle = task.take(); // give up ownership
       };
       std::apply([&](auto&&... tuple) { (takeAll(tuple), ...); }, mTasks);
     }
-    auto await_resume() noexcept -> void {}
+    auto await_resume() noexcept -> void
+    {
+      auto tryCancel = [this](auto&& task) {
+        
+      };
+      std::apply([&](auto&&... tuple) { (tryCancel(tuple), ...); }, mTasks);
+    }
 
     std::shared_ptr<AnyJobData> mAnyData;
     Executor* mExecutor;
