@@ -1,5 +1,4 @@
 #pragma once
-#include "coco/__preclude.hpp"
 
 #include <coco/runtime.hpp>
 #include <coco/util/ring_buffer.hpp>

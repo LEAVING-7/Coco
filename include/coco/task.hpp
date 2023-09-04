@@ -1,5 +1,4 @@
 #pragma once
-#include "coco/__preclude.hpp"
 
 #include "coco/proactor.hpp"
 
@@ -12,13 +11,13 @@
 namespace coco {
 struct PromiseBase {
   struct CoroJob : WorkerJob {
-    CoroJob(std::coroutine_handle<> handle, WorkerJob::fn_type fn) noexcept : handle(handle), WorkerJob(fn) {}
+    CoroJob(PromiseBase* handle, WorkerJob::Fn run) noexcept : promise(handle), WorkerJob(run) {}
     static auto run(WorkerJob* job, void* args) noexcept -> void
     {
       auto coroJob = static_cast<CoroJob*>(job);
-      coroJob->handle.resume();
+      coroJob->promise->mThisHandle.resume();
     }
-    std::coroutine_handle<> handle;
+    PromiseBase* promise;
   };
 
   struct FinalAwaiter {
@@ -52,7 +51,7 @@ struct PromiseBase {
   auto final_suspend() noexcept -> FinalAwaiter { return {}; }
   auto unhandled_exception() noexcept -> void { mExceptionPtr = std::current_exception(); }
 
-  auto setCoHandle(std::coroutine_handle<> handle) noexcept -> void { mThisJob.handle = handle; }
+  auto setCoHandle(std::coroutine_handle<> handle) noexcept -> void { mThisHandle = handle; }
   auto getThisJob() noexcept -> WorkerJob* { return &mThisJob; }
 
   auto setNextJob(WorkerJob* next) noexcept -> void { mNextJob = next; }
@@ -64,7 +63,8 @@ struct PromiseBase {
   auto setAction(JobAction action) -> void { mThisJob.action = action; }
   auto getAction() noexcept -> std::atomic<JobAction>& { return mThisJob.action; }
 
-  CoroJob mThisJob{nullptr, &CoroJob::run};
+  CoroJob mThisJob{this, &CoroJob::run};
+  std::coroutine_handle<> mThisHandle;
   std::atomic<WorkerJob*> mNextJob{nullptr};
   std::exception_ptr mExceptionPtr;
 };

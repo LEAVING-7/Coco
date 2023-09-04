@@ -36,6 +36,22 @@ add_library(Coco STATIC
 set_target_properties(Coco PROPERTIES CXX_STANDARD 20)
 target_include_directories(Coco PUBLIC include)
 target_link_libraries(Coco PUBLIC ${LIBURING})
+target_precompile_headers(Coco
+  PUBLIC
+  <algorithm>
+  <array>
+  <atomic>
+  <cassert>
+  <cstddef>
+  <cstdint>
+  <cstring>
+  <exception>
+  <span>
+  <string_view>
+  <system_error>
+  <utility>
+  <vector>
+)
 
 option(COCO_BUILD_EXAMPLE "Build example" ON)
 option(COCO_BUILD_TEST "Build test" ON)

@@ -15,8 +15,29 @@ auto incTask(coco::sync::Mutex& mt) -> coco::Task<>
   co_return;
 }
 
+auto tryLock() -> coco::Task<>
+{
+  coco::sync::Mutex mt;
+  auto r = co_await mt.tryLock();
+  assert(r);
+  mt.unlock();
+
+  auto t1 = rt.spawn([](coco::sync::Mutex& mt) -> coco::Task<> {
+    co_await mt.lock();
+    co_await rt.sleepFor(1s);
+    mt.unlock();
+  }(mt));
+  co_await rt.sleepFor(20ms);
+
+  r = co_await mt.tryLock();
+  assert(!r);
+  co_await t1.join();
+};
+
 auto main() -> int
 {
+  rt.block(tryLock());
+
   rt.block([]() -> coco::Task<> {
     auto now = std::chrono::steady_clock::now();
     auto mt = coco::sync::Mutex();

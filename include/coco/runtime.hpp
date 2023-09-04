@@ -1,5 +1,4 @@
 #pragma once
-#include "coco/__preclude.hpp"
 
 #include "coco/inl_executor.hpp"
 #include "coco/mt_executor.hpp"
@@ -83,10 +82,27 @@ class Runtime {
     }
     auto await_resume() noexcept -> void
     {
-      auto tryCancel = [this](auto&& task) {
-        
-      };
-      std::apply([&](auto&&... tuple) { (tryCancel(tuple), ...); }, mTasks);
+      /*       auto tryCancel = [&](auto&& task) mutable {
+              auto& state = task.promise().getState();
+              auto& action = task.promise().getAction();
+
+              JobState expected = JobState::Ready;
+              if (!state.compare_exchange_strong(expected, JobState::Cancel)) {
+                // cancel failed
+                if (expected == JobState::Executing) {
+                  JobAction expected = JobAction::None;
+                  if (action.compare_exchange_strong(expected, JobAction::Detach)) {
+                    [[maybe_unused]] auto handle = task.take(); // give up ownership
+                  } else if (action == JobAction::Final) {
+                    // do nothing, task can be destroyed safely
+                  }
+                }
+              } else if (expected != JobState::Final) {
+                // cancel success, canceled task won't be executed
+                ::printf("cancel job %p id = %u\n", task.promise().getThisJob(), task.promise().getState().load());
+              }
+            };
+            std::apply([&](auto&&... tuple) { (tryCancel(tuple), ...); }, mTasks); */
     }
 
     std::shared_ptr<AnyJobData> mAnyData;
@@ -194,7 +210,7 @@ public:
 
   // not recommend to use
   template <TaskConcept... TasksTy>
-  [[nodiscard]] constexpr auto waitAny(TasksTy&&... tasks) -> decltype(auto)
+  [[deprecated("not finished yet")]] constexpr auto waitAny(TasksTy&&... tasks) -> decltype(auto)
   {
     auto tasksTuple = std::make_tuple(std::forward<TasksTy>(tasks)...);
     return WaitAnyAwaiter<std::tuple<TasksTy...>>(mExecutor.get(), std::move(tasksTuple));

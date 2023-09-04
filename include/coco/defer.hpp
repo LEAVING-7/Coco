@@ -1,5 +1,4 @@
 #pragma once
-#include "coco/__preclude.hpp"
 
 template <class F>
 class Defer {

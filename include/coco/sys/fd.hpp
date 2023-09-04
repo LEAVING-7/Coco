@@ -1,5 +1,4 @@
 #pragma once
-#include "coco/__preclude.hpp"
 
 namespace coco::sys {
 inline auto lastErrc() -> std::errc { return std::errc(errno); }

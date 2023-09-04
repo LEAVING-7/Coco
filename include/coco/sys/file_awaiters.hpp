@@ -1,5 +1,4 @@
 #pragma once
-#include "coco/__preclude.hpp"
 
 #include "coco/proactor.hpp"
 #include "coco/sys/socket_awaiters.hpp" // for IoJob
@@ -21,7 +20,7 @@ struct [[nodiscard]] ReadAwaiter : FileAwaiter {
   template <typename Promise>
   auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
   {
-    auto job = handle.promise().getThisJob();
+    auto job = &handle.promise();
     mIoJob.mPending = job;
     Proactor::get().prepRead(&mIoJob, mFd, mBuf, mOffset);
   }
@@ -48,7 +47,7 @@ struct [[nodiscard]] WriteAwaiter : FileAwaiter {
   template <typename Promise>
   auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
   {
-    auto job = handle.promise().getThisJob();
+    auto job = &handle.promise();
     mIoJob.mPending = job;
     Proactor::get().prepWrite(&mIoJob, mFd, mBuf, mOffset);
   }

@@ -1,23 +1,23 @@
 #pragma once
-#include "coco/__preclude.hpp"
 
 #include "coco/proactor.hpp"
 #include "coco/sys/socket_addr.hpp"
+#include "coco/task.hpp"
 
 #include <coroutine>
 
 namespace coco::sys::detail {
 struct [[nodiscard]] IoJob : WorkerJob {
-  IoJob(WorkerJob* pending) : WorkerJob(&IoJob::run), mPending(pending){};
+  IoJob(PromiseBase* pending) : WorkerJob(&IoJob::run), mPending(pending){};
   static auto run(WorkerJob* job, void* args) noexcept -> void
   {
     auto ioJob = static_cast<IoJob*>(job);
     auto res = static_cast<int*>(args);
     ioJob->mResult = *res;
-    Proactor::get().execute(ioJob->mPending);
+    Proactor::get().execute(ioJob->mPending->getThisJob());
   }
   int mResult;
-  WorkerJob* mPending;
+  PromiseBase* mPending;
 };
 
 struct SocketAwaiter {
@@ -32,7 +32,7 @@ struct [[nodiscard]] RecvAwaiter : SocketAwaiter {
   template <typename Promise>
   auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
   {
-    auto job = handle.promise().getThisJob();
+    auto job = &handle.promise();
     mIoJob.mPending = job;
     Proactor::get().prepRecv(&mIoJob, mFd, mBuf);
   }
@@ -54,7 +54,7 @@ struct [[nodiscard]] SendAwaiter : SocketAwaiter {
   template <typename Promise>
   auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
   {
-    auto job = handle.promise().getThisJob();
+    auto job = &handle.promise();
     mIoJob.mPending = job;
     Proactor::get().prepSend(&mIoJob, mFd, mBuf);
   }
@@ -76,7 +76,7 @@ struct [[nodiscard]] ConnectAwaiter : SocketAwaiter {
   template <typename Promise>
   auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
   {
-    auto job = handle.promise().getThisJob();
+    auto job = &handle.promise();
     mIoJob.mPending = job;
     auto v4 = mAddr.toV4();
     Proactor::get().prepConnect(&mIoJob, mFd, (sockaddr*)&v4, sizeof(v4));
@@ -99,7 +99,7 @@ struct [[nodiscard]] AcceptAwaiter : SocketAwaiter {
   template <typename Promise>
   auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
   {
-    auto job = handle.promise().getThisJob();
+    auto job = &handle.promise();
     mIoJob.mPending = job;
     Proactor::get().prepAccept(&mIoJob, mFd, nullptr, nullptr);
   }

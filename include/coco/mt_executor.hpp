@@ -1,5 +1,4 @@
 #pragma once
-#include "coco/__preclude.hpp"
 
 #include "coco/proactor.hpp"
 #include "coco/task.hpp"

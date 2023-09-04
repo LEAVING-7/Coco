@@ -1,5 +1,4 @@
 #pragma once
-#include "coco/__preclude.hpp"
 
 #include "coco/util/queue.hpp"
 
@@ -30,11 +29,11 @@ enum class JobAction : std::uint16_t {
 };
 
 struct WorkerJob {
-  using fn_type = void (*)(WorkerJob* task, void* args) noexcept;
-  WorkerJob(fn_type fn) noexcept : run(fn), next(nullptr), id(genJobId()) {}
+  using Fn = void (*)(WorkerJob* task, void* args) noexcept;
+  WorkerJob(Fn fn) noexcept : run(fn), next(nullptr), id(genJobId()) {}
 
   WorkerJob* next;
-  fn_type run;
+  Fn run;
   std::uint32_t id;
   std::atomic<JobState> state{JobState::Ready};
   std::atomic<JobAction> action{JobAction::None};
@@ -69,7 +68,8 @@ struct Task;
 
 enum class ExeOpt {
   Balance,
-  OneThread,
+  PreferInOne,
+  ForceInOne,
 };
 
 class Executor {

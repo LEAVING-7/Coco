@@ -1,5 +1,4 @@
 #pragma once
-#include "coco/__preclude.hpp"
 
 #include "coco/util/heap.hpp"
 #include "coco/util/lockfree_queue.hpp"

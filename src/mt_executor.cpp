@@ -137,7 +137,7 @@ auto MtExecutor::execute(WorkerJob* job, ExeOpt opt) noexcept -> void
 {
   if (opt == ExeOpt::Balance) {
     balanceEnqueue(job, true);
-  } else if (opt == ExeOpt::OneThread) {
+  } else if (opt == ExeOpt::PreferInOne) {
     balanceEnqueue(job, false);
   }
 }

@@ -1,5 +1,4 @@
 #pragma once
-#include "coco/__preclude.hpp"
 
 #include "coco/sys/fd.hpp"
 #include "coco/sys/file_awaiters.hpp"
