@@ -2,12 +2,9 @@
 
 #include <optional>
 // fifo ring buffer
-// TODO: make it lock-free
 template <typename T, std::uint32_t N>
 class RingBuffer {
 public:
-  using value_type = std::remove_cv_t<T>;
-
   RingBuffer() : mOut(0), mSize(0) {}
 
   auto pop() noexcept -> std::optional<T>
@@ -19,6 +16,17 @@ public:
     mOut = (mOut + 1) % N;
     mSize -= 1;
     return result;
+  }
+
+  auto pop(T& value) -> bool
+  {
+    if (mSize == 0) {
+      return false;
+    }
+    value = std::move(mData[mOut]);
+    mOut = (mOut + 1) % N;
+    mSize -= 1;
+    return true;
   }
 
   auto push(T&& item) noexcept -> bool
@@ -42,8 +50,8 @@ public:
   }
 
   auto size() const noexcept -> std::uint32_t { return mSize; }
-  auto empty() const noexcept -> bool { return mSize == 0; }
-  auto full() const noexcept -> bool { return mSize == N; }
+  auto empty() const noexcept -> bool { return size() == 0; }
+  auto full() const noexcept -> bool { return size() == N; }
 
 private:
   std::array<T, N> mData;

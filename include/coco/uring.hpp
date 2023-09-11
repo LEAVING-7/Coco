@@ -45,7 +45,30 @@ public:
 
   auto prepRead(Token token, int fd, std::span<std::byte> buf, off_t offset) noexcept -> void;
   auto prepWrite(Token token, int fd, std::span<std::byte const> buf, off_t offset) noexcept -> void;
-
+  template <typename Rep, typename Ratio>
+  auto prepAddTimeout(Token token, std::chrono::duration<Rep, Ratio> timeout) noexcept -> void
+  {
+    auto timeoutSpec = __kernel_timespec{};
+    convertTime(timeout, timeoutSpec);
+    auto sqe = fetchSqe();
+    ::io_uring_prep_timeout(sqe, &timeoutSpec, 0, 0);
+    ::io_uring_sqe_set_data(sqe, token);
+  }
+  template <typename Rep, typename Ratio>
+  auto prepUpdateTimeout(Token token, std::chrono::duration<Rep, Ratio> timeout) noexcept -> void
+  {
+    auto timeoutSpec = __kernel_timespec{};
+    convertTime(timeout, timeoutSpec);
+    auto sqe = fetchSqe();
+    ::io_uring_prep_timeout(sqe, &timeoutSpec, 1, 0);
+    ::io_uring_sqe_set_data(sqe, token);
+  }
+  auto prepRemoveTimeout(Token token) noexcept -> void
+  {
+    auto sqe = fetchSqe();
+    ::io_uring_prep_timeout_remove(sqe, (std::uint64_t)token, 0);
+    ::io_uring_sqe_set_data(sqe, token);
+  }
   auto prepCancel(int fd) noexcept -> void;
   auto prepCancel(Token token) noexcept -> void;
   auto prepClose(Token token, int fd) noexcept -> void;

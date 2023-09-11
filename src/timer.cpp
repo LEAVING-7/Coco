@@ -6,7 +6,7 @@ auto TimerManager::addTimer(Instant time, WorkerJob* job) noexcept -> void
   std::scoped_lock lock(mPendingJobsMt);
   mPendingJobs.push({time, job, TimerOpKind::Add});
 }
-auto TimerManager::deleteTimer(std::size_t jobId) noexcept -> void
+auto TimerManager::deleteTimer(void* jobId) noexcept -> void
 {
   std::scoped_lock lock(mPendingJobsMt);
   mPendingJobs.push(TimerOp{.instant = Instant(), .jobId = jobId, .kind = TimerOpKind::Delete});
@@ -47,7 +47,7 @@ auto TimerManager::processTimers() -> std::pair<WorkerJobQueue, std::size_t>
   while (!mTimers.empty() && mTimers.top().instant <= now) {
     auto job = mTimers.top().job;
     mTimers.pop();
-    if (auto it = mDeleted.find(job->id); it != mDeleted.end()) {
+    if (auto it = mDeleted.find(job->state); it != mDeleted.end()) {
       mDeleted.erase(it);
       continue;
     }

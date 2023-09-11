@@ -155,11 +155,12 @@ auto MtExecutor::execute(WorkerJobQueue&& queue, std::size_t count, ExeOpt opt) 
 }
 auto MtExecutor::runMain(Task<> task) -> void
 {
-  auto& action = task.promise().getAction();
-  action = JobAction::NotifyAction;
-  this->execute(task.promise().getThisJob());
-  while (action != JobAction::Final) {
-    action.wait(JobAction::NotifyAction);
+  auto& promise = task.promise();
+  auto taskState = std::atomic<JobState>(JobState::Ready);
+  promise.setState(&taskState);
+  this->execute(promise.getThisJob());
+  while (taskState.load() != JobState::Final) {
+    taskState.wait(JobState::Ready);
   }
 };
 

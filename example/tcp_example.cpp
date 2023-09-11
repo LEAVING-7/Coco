@@ -1,5 +1,6 @@
 #include <coco/net.hpp>
 #include <coco/runtime.hpp>
+using namespace std::literals;
 
 auto print(std::string_view msg, std::errc errc) -> void
 {
@@ -75,7 +76,7 @@ auto client() -> coco::Task<>
   co_return;
 }
 
-auto main() -> int
+auto main1() -> int
 {
   rt.block([]() -> coco::Task<> {
     ::puts("tcp example");
@@ -84,6 +85,36 @@ auto main() -> int
 
     co_await c.join();
     co_await s.join();
+    ::puts("everything done");
+    co_return;
+  }());
+}
+
+auto connect() -> coco::Task<>
+{
+  using namespace coco::sys;
+  ::puts("client start");
+  auto [client, errc] = co_await TcpStream::connect(SocketAddr(SocketAddrV4::localhost(2333)), 1s);
+  if (errc != std::errc(0)) {
+    print("connect error", errc);
+    co_return;
+  }
+  ::puts("client connected");
+  auto buf = std::array<char, 1024>{};
+  auto [n, err] = co_await client.recv(std::as_writable_bytes(std::span(buf)), 5s);
+  if (err != std::errc(0)) {
+    print("recv error", err);
+    co_return;
+  }
+}
+
+auto main() -> int
+{
+  rt.block([]() -> coco::Task<> {
+    ::puts("tcp example");
+    auto c = rt.spawn(connect());
+
+    co_await c.join();
     ::puts("everything done");
     co_return;
   }());

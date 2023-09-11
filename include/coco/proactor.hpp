@@ -6,6 +6,15 @@
 #include "coco/worker_job.hpp"
 
 namespace coco {
+struct CancelItem {
+  enum class Kind { IoFd, TimeoutToken } mKind;
+  union {
+    int mFd;
+    Token mToken;
+  };
+  static auto cancelIo(int fd) -> CancelItem { return {Kind::IoFd, fd}; }
+  static auto cancelTimeout(Token token) -> CancelItem { return {.mKind = Kind::TimeoutToken, .mToken = token}; }
+};
 class Proactor {
 public:
   static auto get() noexcept -> Proactor&
@@ -34,7 +43,8 @@ public:
     notify();
   }
   auto addTimer(Instant time, WorkerJob* job) noexcept -> void { mTimerManager.addTimer(time, job); }
-  auto deleteTimer(std::size_t jobId) noexcept -> void { mTimerManager.deleteTimer(jobId); }
+  auto deleteTimer(void* jobId) noexcept -> void { mTimerManager.deleteTimer(jobId); }
+
   auto processTimers() { return mTimerManager.processTimers(); }
 
   auto notify() -> void
@@ -46,34 +56,62 @@ public:
   }
   auto prepRecv(Token token, int fd, std::span<std::byte> buf, int flag = 0) -> void
   {
+    addPendingSet((WorkerJob*)token);
     mUring.prepRecv(token, fd, buf, flag);
   }
   auto prepSend(Token token, int fd, std::span<std::byte const> buf, int flag = 0) -> void
   {
+    addPendingSet((WorkerJob*)token);
     mUring.prepSend(token, fd, buf, flag);
   }
   auto prepAccept(Token token, int fd, sockaddr* addr, socklen_t* addrlen, int flags = 0) -> void
   {
+    addPendingSet((WorkerJob*)token);
     mUring.prepAccept(token, fd, addr, addrlen, flags);
   }
   auto prepConnect(Token token, int fd, sockaddr* addr, socklen_t addrlen) -> void
   {
+    addPendingSet((WorkerJob*)token);
     mUring.prepConnect(token, fd, addr, addrlen);
   }
+  template <typename Rep, typename Period>
+  auto prepTimeout(Token token, std::chrono::duration<Rep, Period> duration) -> void
+  {
+    addPendingSet((WorkerJob*)token);
+    mUring.prepAddTimeout(token, duration);
+  }
+  template <typename Rep, typename Period>
+  auto prepUpdateTimeout(Token token, std::chrono::duration<Rep, Period> duration) -> void
+  {
+    addPendingSet((WorkerJob*)token);
+    mUring.prepUpdateTimeout(token, duration);
+  }
+  auto prepRemoveTimeout(Token token) -> void { mUring.prepRemoveTimeout(token); }
+
   auto prepRead(Token token, int fd, std::span<std::byte> buf, off_t offset) -> void
   {
+    addPendingSet((WorkerJob*)token);
     mUring.prepRead(token, fd, buf, offset);
   }
   auto prepWrite(Token token, int fd, std::span<std::byte const> buf, off_t offset) -> void
   {
+    addPendingSet((WorkerJob*)token);
     mUring.prepWrite(token, fd, buf, offset);
   }
   auto prepCancel(int fd) -> void { mUring.prepCancel(fd); }
   auto prepCancel(Token token) -> void { mUring.prepCancel(token); }
   auto prepClose(Token token, int fd) -> void { mUring.prepClose(token, fd); }
 
+  auto addCancel(CancelItem cancel) -> void
+  {
+    std::lock_guard<std::mutex> lock(mCancelMt);
+    mCancels.push_back(cancel);
+    notify();
+  }
+
   auto wait() -> void
   {
+    processCancel();
     auto [jobs, count] = mTimerManager.processTimers();
     while (auto job = jobs.popFront()) {
       runJob(job, nullptr);
@@ -86,6 +124,19 @@ public:
       submitWait(duration);
     }
     return;
+  }
+
+  auto delPendingSet(CancelItem item) -> void
+  {
+    std::lock_guard<std::mutex> lock(mPendingSet);
+    switch (item.mKind) {
+    case CancelItem::Kind::IoFd:
+      break;
+    case CancelItem::Kind::TimeoutToken:
+      mPendingJobs.erase((WorkerJob*)item.mToken);
+      break;
+    }
+    doCancel(item);
   }
 
 private:
@@ -102,8 +153,7 @@ private:
       if (cqe->flags & IORING_CQE_F_MORE) {
         mNotifyBlocked.store(false);
       } else {
-        auto job = (WorkerJob*)cqe->user_data;
-        runJob(job, &cqe->res);
+        doIoJob(cqe);
       }
       mUring.seen(cqe);
     }
@@ -117,24 +167,75 @@ private:
     }
     std::uint32_t count = 0;
     std::uint32_t head = 0;
-    io_uring_cqe* cqe = nullptr;
+    ::io_uring_cqe* cqe = nullptr;
     io_uring_for_each_cqe(mUring.uring(), head, cqe)
     {
       if (cqe->flags & IORING_CQE_F_MORE) {
         mNotifyBlocked.store(false);
       } else {
-        auto job = (WorkerJob*)cqe->user_data;
-        runJob(job, &cqe->res);
+        doIoJob(cqe);
       }
       count++;
     }
     mUring.advance(count);
   }
 
+  auto processCancel() -> void
+  {
+    std::lock_guard<std::mutex> lock(mCancelMt);
+    while (!mCancels.empty()) {
+      auto cancel = mCancels.back();
+      mCancels.pop_back();
+      doCancel(cancel);
+    }
+    auto r = mUring.submit();
+    assert(r == std::errc(0));
+  }
+
+  auto addPendingSet(WorkerJob* job) -> void
+  {
+    std::lock_guard<std::mutex> lock(mPendingSet);
+    mPendingJobs.insert(job);
+  }
+
 private:
+  auto doIoJob(::io_uring_cqe* cqe) noexcept -> void
+  {
+    auto job = (WorkerJob*)cqe->user_data;
+    if (job != nullptr) {
+      auto n = 0;
+      {
+        std::lock_guard<std::mutex> lock(mPendingSet);
+        n = mPendingJobs.erase(job);
+      }
+      if (n == 1) {
+        runJob(job, &cqe->res);
+      }
+    }
+  }
+
+  auto doCancel(CancelItem item) noexcept -> void
+  {
+    switch (item.mKind) {
+    case CancelItem::Kind::IoFd:
+      mUring.prepCancel(item.mFd);
+      break;
+    case CancelItem::Kind::TimeoutToken:
+      ::puts("doCancel() cancel timeout");
+      mUring.prepRemoveTimeout(item.mToken);
+      break;
+    }
+  }
+
   Executor* mExecutor;
   TimerManager mTimerManager{64};
   IoUring mUring{};
   std::atomic_bool mNotifyBlocked{false};
+
+  std::mutex mCancelMt;
+  std::vector<CancelItem> mCancels;
+
+  std::mutex mPendingSet;
+  std::unordered_set<WorkerJob*> mPendingJobs;
 };
 } // namespace coco

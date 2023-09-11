@@ -9,7 +9,6 @@
 #include <unordered_set>
 
 namespace coco {
-
 using Instant = std::chrono::steady_clock::time_point;
 using Duration = std::chrono::steady_clock::duration;
 
@@ -22,7 +21,7 @@ struct TimerOp {
   Instant instant;
   union {
     WorkerJob* job;
-    std::size_t jobId;
+    void* jobId;
   };
   TimerOpKind kind;
 };
@@ -43,14 +42,14 @@ public:
   // MT-Safe
   auto addTimer(Instant time, WorkerJob* job) noexcept -> void;
   // MT-Safe
-  auto deleteTimer(std::size_t jobId) noexcept -> void;
+  auto deleteTimer(void* id) noexcept -> void;
   auto nextInstant() const noexcept -> Instant;
   auto processTimers() -> std::pair<WorkerJobQueue, std::size_t>;
 
 private:
   std::mutex mPendingJobsMt;
   std::queue<TimerOp> mPendingJobs;
-  std::unordered_set<std::size_t> mDeleted;
+  std::unordered_set<void*> mDeleted;
   util::Heap<TimerItem, 4> mTimers;
 };
 } // namespace coco

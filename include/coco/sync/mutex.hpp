@@ -6,7 +6,7 @@
 namespace coco::sync {
 class Mutex;
 namespace detail {
-struct MutexLockAwaiter {
+struct [[nodiscard]] MutexLockAwaiter {
   MutexLockAwaiter(Mutex& mt) : mMt(mt) {}
   auto await_ready() const noexcept -> bool;
   template <typename Promise>
@@ -16,7 +16,7 @@ struct MutexLockAwaiter {
   Mutex& mMt;
 };
 
-struct MutexTryLockAwaiter {
+struct [[nodiscard]] MutexTryLockAwaiter {
   MutexTryLockAwaiter(Mutex& mt) : mMt(mt) {}
   auto await_ready() const noexcept -> bool;
   template <typename Promise>
@@ -27,6 +27,16 @@ struct MutexTryLockAwaiter {
   bool mSuccess = false;
 };
 }; // namespace detail
+template <typename MutexTy>
+class LockGuard {
+public:
+  LockGuard() = default; // TODO delete
+  LockGuard(MutexTy* mt) : mMt(mt) {}
+  ~LockGuard() { mMt->unlock(); }
+
+private:
+  MutexTy* mMt;
+};
 
 class Mutex {
 public:
@@ -35,16 +45,21 @@ public:
 
   auto lock() -> detail::MutexLockAwaiter { return detail::MutexLockAwaiter(*this); }
   auto tryLock() -> detail::MutexTryLockAwaiter { return detail::MutexTryLockAwaiter(*this); }
+  auto guard() -> coco::Task<LockGuard<Mutex>>
+  {
+    co_await lock();
+    co_return LockGuard<Mutex>(this);
+  }
   auto unlock() -> void
   {
     mQueueMt.lock();
     if (mWaitQueue.empty()) {
-      mHold.store(false, std::memory_order_relaxed);
+      mHold.store(false, std::memory_order_release);
       mQueueMt.unlock();
       return;
     }
     auto job = mWaitQueue.popFront();
-    mHold.store(false, std::memory_order_relaxed);
+    mHold.store(false, std::memory_order_release);
     mQueueMt.unlock();
     Proactor::get().execute(job, ExeOpt::PreferInOne);
   }
@@ -52,6 +67,7 @@ public:
 private:
   friend struct detail::MutexLockAwaiter;
   friend struct detail::MutexTryLockAwaiter;
+  friend struct CondVar;
 
   coco::WorkerJobQueue mWaitQueue;
   std::mutex mQueueMt;

@@ -15,28 +15,16 @@ enum class JobState : std::uint16_t {
   Ready,
   Executing,
   Pending,
-  Cancel,
-  Final,
-};
-
-enum class JobAction : std::uint16_t {
-  None,
-  Detach,
-  NotifyAction,
-  NotifyState,
-  OneShot,
   Final,
 };
 
 struct WorkerJob {
   using Fn = void (*)(WorkerJob* task, void* args) noexcept;
-  WorkerJob(Fn fn) noexcept : run(fn), next(nullptr), id(genJobId()) {}
+  WorkerJob(Fn fn, std::atomic<JobState>* state) noexcept : run(fn), next(nullptr), state(state) {}
 
-  WorkerJob* next;
   Fn run;
-  std::uint32_t id;
-  std::atomic<JobState> state{JobState::Ready};
-  std::atomic<JobAction> action{JobAction::None};
+  WorkerJob* next;
+  std::atomic<JobState>* state;
 };
 
 using WorkerJobQueue = util::Queue<&WorkerJob::next>;
@@ -44,24 +32,11 @@ using WorkerJobQueue = util::Queue<&WorkerJob::next>;
 inline auto runJob(WorkerJob* job, void* args) noexcept -> void
 {
   assert(job != nullptr && "job should not be nullptr");
-  JobState expected = JobState::Ready;
-  auto action = job->action.load(std::memory_order_relaxed);
-  if (job->state.compare_exchange_strong(expected, JobState::Executing)) {
-    job->run(job, args);
-    if (action != JobAction::OneShot) {
-      JobState expected = JobState::Executing;
-      if (job->state.compare_exchange_strong(expected, JobState::Ready)) {
-        // do nothing
-      } else {
-        // already done
-      };
-    }
-  } else {
-  }
+  job->run(job, args);
 }
 
 inline auto emptyFn(WorkerJob*, void*) noexcept -> void { assert(false && "empty job should not be executed"); }
-inline WorkerJob emptyJob{emptyFn};
+inline WorkerJob emptyJob{emptyFn, nullptr};
 
 template <typename T = void>
 struct Task;
@@ -81,4 +56,5 @@ public:
   virtual auto execute(WorkerJob* handle, ExeOpt opt) noexcept -> void = 0;
   virtual auto runMain(Task<> task) -> void = 0;
 };
+
 } // namespace coco

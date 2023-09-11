@@ -11,7 +11,7 @@
 namespace coco {
 struct PromiseBase {
   struct CoroJob : WorkerJob {
-    CoroJob(PromiseBase* handle, WorkerJob::Fn run) noexcept : promise(handle), WorkerJob(run) {}
+    CoroJob(PromiseBase* promise, WorkerJob::Fn run) noexcept : promise(promise), WorkerJob(run, nullptr) {}
     static auto run(WorkerJob* job, void* args) noexcept -> void
     {
       auto coroJob = static_cast<CoroJob*>(job);
@@ -31,22 +31,14 @@ struct PromiseBase {
       auto next = promise.mNextJob.exchange(nullptr);
       if (next != &emptyJob && next != nullptr) {
         Proactor::get().execute(next);
-      }
-
-      auto lastState = promise.getState().exchange(JobState::Final);
-      assert(lastState != JobState::Cancel && "canceled job should not be executed");
-
-      auto lastAction = promise.getAction().exchange(JobAction::Final);
-      if (lastAction == JobAction::Detach) {
-        handle.destroy();
-      } else if (lastAction == JobAction::NotifyState) {
-        promise.getState().notify_one();
-      } else if (lastAction == JobAction::NotifyAction) {
-        promise.getAction().notify_one();
+      } else if (next == nullptr) {
+        promise.getState()->store(JobState::Final, std::memory_order_release);
+        promise.getState()->notify_one();
       }
     }
     auto await_resume() noexcept -> void {}
   };
+
   auto initial_suspend() noexcept -> std::suspend_always { return {}; }
   auto final_suspend() noexcept -> FinalAwaiter { return {}; }
   auto unhandled_exception() noexcept -> void { mExceptionPtr = std::current_exception(); }
@@ -54,14 +46,11 @@ struct PromiseBase {
   auto setCoHandle(std::coroutine_handle<> handle) noexcept -> void { mThisHandle = handle; }
   auto getThisJob() noexcept -> WorkerJob* { return &mThisJob; }
 
+  auto getState() noexcept -> std::atomic<JobState>* { return mThisJob.state; }
+  auto setState(std::atomic<JobState>* state) noexcept -> void { mThisJob.state = state; }
+
   auto setNextJob(WorkerJob* next) noexcept -> void { mNextJob = next; }
   auto getNextJob() noexcept -> std::atomic<WorkerJob*>& { return mNextJob; }
-
-  auto setState(JobState state) -> void { mThisJob.state.store(state); }
-  auto getState() noexcept -> std::atomic<JobState>& { return mThisJob.state; }
-
-  auto setAction(JobAction action) -> void { mThisJob.action = action; }
-  auto getAction() noexcept -> std::atomic<JobAction>& { return mThisJob.action; }
 
   CoroJob mThisJob{this, &CoroJob::run};
   std::coroutine_handle<> mThisHandle;
@@ -158,6 +147,7 @@ public:
     auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
     {
       mHandle.promise().setNextJob(handle.promise().getThisJob());
+      mHandle.promise().setState(handle.promise().getState());
       Proactor::get().execute(mHandle.promise().getThisJob());
     }
     coroutine_handle_type mHandle;
@@ -183,7 +173,6 @@ private:
   auto destroy() -> void
   {
     if (auto handle = std::exchange(mHandle, nullptr); handle != nullptr) {
-      // handle.promise().cancel();
       handle.destroy();
     }
   }
@@ -206,15 +195,10 @@ struct [[nodiscard]] ThisTask {
   constexpr auto await_suspend(std::coroutine_handle<Promise> handle) noexcept
   {
     mCoHandle = handle;
-    mJobId = handle.promise().getThisJob()->id;
     return false;
   }
-  constexpr auto await_resume() const noexcept -> std::pair<std::coroutine_handle<>, std::size_t>
-  {
-    return {mCoHandle, mJobId};
-  }
+  constexpr auto await_resume() const noexcept -> std::coroutine_handle<> { return {mCoHandle}; }
   std::coroutine_handle<> mCoHandle;
-  std::size_t mJobId;
 };
 
 struct [[nodiscard]] Yield {

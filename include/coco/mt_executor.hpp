@@ -94,9 +94,8 @@ public:
 
 private:
   template <typename T>
+  auto balanceEnqueue(T task, bool incNext) noexcept -> void
     requires std::is_same_v<WorkerJobQueue, T> || std::is_base_of_v<WorkerJob, std::remove_pointer_t<T>>
-                                                auto balanceEnqueue(T task, bool incNext) noexcept
-             -> void // werid formation for concept
   {
     auto nextIdx =
         incNext ? mNextWorker.fetch_add(1, std::memory_order_relaxed) : mNextWorker.load(std::memory_order_relaxed);
@@ -115,5 +114,6 @@ private:
   std::atomic_uint32_t mNextWorker = 0;
   std::vector<std::thread> mThreads;
   std::vector<std::unique_ptr<Worker>> mWorkers;
+  std::atomic_uint32_t mSyncNextWorker = 0;
 };
 } // namespace coco

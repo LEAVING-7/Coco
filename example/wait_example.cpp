@@ -26,10 +26,10 @@ auto taskC() -> coco::Task<>
 auto main() -> int
 {
   rt.block([]() -> coco::Task<> {
-    auto [handle, id] = co_await coco::ThisTask();
-    ::printf("main task %p id = %zu\n", handle.address(), id);
-    co_await rt.waitAll(taskA(), taskB(), taskC());
+    auto handle = co_await coco::ThisTask();
     ::puts("====================");
+ 
+    ::puts("every thing done");
     co_return;
   }());
 }

@@ -58,7 +58,7 @@ auto InlExecutor::execute(WorkerJob* handle, ExeOpt opt) noexcept -> void { mTas
 auto InlExecutor::runMain(Task<> task) -> void
 {
   Proactor::get().attachExecutor(this);
-  mMainTaskState = &task.promise().getState();
+  mMainTaskState = task.promise().getState();
   execute(task.promise().getThisJob());
   processTasks();
   loop();

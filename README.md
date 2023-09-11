@@ -7,11 +7,10 @@ The following is basically completed, but there may still be some bugs. (issues 
 - [x] `TcpStream`, `TcpListener`
 - [x] `MultiThreadExecutor`, `InlineExecutor`
 - [x] `waitAll`, `sleepFor`, `sleepUntil`
+- [x] **File IO**
 
 ## TODO
 - [ ] `CondVar`, `RwLock`, `Latch`
-- [ ] **File IO**
-- [ ] `whenAny`
 
 ## Example
 Simple Tcp server and client
