@@ -3,14 +3,14 @@ A simple C++ 20 coroutine library, using liburing.
 
 ## Features
 The following is basically completed, but there may still be some bugs. (issues and PRs are welcome)
-- [x] `Channel`, `Mutex`
+- [x] `Channel`, `Mutex`, `CondVar`, `RwLock`
 - [x] `TcpStream`, `TcpListener`
 - [x] `MultiThreadExecutor`, `InlineExecutor`
 - [x] `waitAll`, `sleepFor`, `sleepUntil`
 - [x] **File IO**
 
 ## TODO
-- [ ] `CondVar`, `RwLock`, `Latch`
+- [ ] `Latch`
 
 ## Example
 Simple Tcp server and client
