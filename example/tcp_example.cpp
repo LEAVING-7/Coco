@@ -11,7 +11,7 @@ auto print(std::string_view msg, std::errc errc) -> void
   }
 }
 
-static coco::Runtime rt(coco::MT, 4);
+static coco::Runtime rt(coco::INL, 4);
 
 auto server() -> coco::Task<int>
 {
@@ -76,7 +76,7 @@ auto client() -> coco::Task<>
   co_return;
 }
 
-auto main1() -> int
+auto main() -> int
 {
   rt.block([]() -> coco::Task<> {
     ::puts("tcp example");
@@ -108,7 +108,7 @@ auto connect() -> coco::Task<>
   }
 }
 
-auto main() -> int
+auto main1() -> int
 {
   rt.block([]() -> coco::Task<> {
     ::puts("tcp example");

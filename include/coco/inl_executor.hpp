@@ -30,6 +30,6 @@ private:
   Proactor* mProactor = nullptr;
   WorkerJobQueue mTaskQueue;
   State mState;
-  std::atomic<JobState>* mMainTaskState = nullptr;
+  std::atomic<JobState> mMainTaskState = JobState::Ready;
 };
 } // namespace coco

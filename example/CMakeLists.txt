@@ -19,6 +19,10 @@ if(COCO_BUILD_EXAMPLE)
   target_link_libraries(condvar_example Coco)
   set_target_properties(condvar_example PROPERTIES CXX_STANDARD 20)
 
+  add_executable(rwlock_example rwlock_example.cpp)
+  target_link_libraries(rwlock_example Coco)
+  set_target_properties(rwlock_example PROPERTIES CXX_STANDARD 20)
+
   # add a target run all example
   add_custom_target(run_example
     COMMAND wait_example

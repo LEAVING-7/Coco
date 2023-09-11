@@ -221,7 +221,6 @@ private:
       mUring.prepCancel(item.mFd);
       break;
     case CancelItem::Kind::TimeoutToken:
-      ::puts("doCancel() cancel timeout");
       mUring.prepRemoveTimeout(item.mToken);
       break;
     }

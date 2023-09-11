@@ -28,17 +28,6 @@ struct [[nodiscard]] MutexTryLockAwaiter {
 };
 }; // namespace detail
 
-template <typename MutexTy>
-class LockGuard {
-public:
-  LockGuard() = default; // TODO delete
-  LockGuard(MutexTy* mt) : mMt(mt) {}
-  ~LockGuard() { mMt->unlock(); }
-
-private:
-  MutexTy* mMt;
-};
-
 class Mutex {
 public:
   Mutex() = default;
@@ -46,11 +35,6 @@ public:
 
   auto lock() -> detail::MutexLockAwaiter { return detail::MutexLockAwaiter(*this); }
   auto tryLock() -> detail::MutexTryLockAwaiter { return detail::MutexTryLockAwaiter(*this); }
-  auto guard() -> coco::Task<LockGuard<Mutex>>
-  {
-    co_await lock();
-    co_return LockGuard<Mutex>(this);
-  }
   auto unlock() -> void
   {
     mQueueMt.lock();

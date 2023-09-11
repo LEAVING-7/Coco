@@ -55,9 +55,7 @@ private:
   std::mutex mMt;
   WorkerJobQueue mReaders;
   WorkerJobQueue mWriter;
-
   RingBuffer<T, N> mBuffer;
-
   bool mClosed = false;
 };
 

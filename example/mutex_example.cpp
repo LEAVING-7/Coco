@@ -9,8 +9,8 @@ auto incTask(coco::sync::Mutex& mt) -> coco::Task<>
 {
   for (int i = 0; i < 100'000; i++) {
     co_await mt.lock();
+    defer { mt.unlock(); };
     counter += 1;
-    mt.unlock();
   }
   co_return;
 }
@@ -24,11 +24,11 @@ auto tryLock() -> coco::Task<>
 
   auto t1 = rt.spawn([](coco::sync::Mutex& mt) -> coco::Task<> {
     co_await mt.lock();
+    defer { mt.unlock(); };
+
     co_await rt.sleepFor(1s);
-    mt.unlock();
   }(mt));
   co_await rt.sleepFor(20ms);
-
   r = co_await mt.tryLock();
   assert(!r);
   co_await t1.join();
@@ -45,7 +45,7 @@ auto main() -> int
     for (int i = 0; i < ths.size(); i++) {
       ths[i] = rt.spawn(incTask(mt));
     }
-    co_await rt.waitAll(ths);
+    co_await rt.waitAll(std::span(ths));
     ::printf("counter = %zu\n", counter);
     ::printf("time = %zu\n",
              std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - now).count());

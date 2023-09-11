@@ -57,6 +57,8 @@ public:
     }
     [[nodiscard]] auto join() { return JoinAwaiter(mDone); }
 
+    auto result() -> decltype(auto) { return mTask.promise().result(); }
+
     std::atomic<WorkerJob*>* mDone;
     TaskTy mTask;
   };
@@ -67,16 +69,20 @@ public:
     return JoinHandle<TaskTy>(std::move(task));
   }
 
+  template <typename TaskTy>
+  [[nodiscard]] auto waitAll(std::span<JoinHandle<TaskTy>> handles) -> Task<>
+  {
+    for (auto& handle : handles) {
+      co_await handle.join();
+    }
+    co_return;
+  }
+
   template <typename... JoinHandles>
   [[nodiscard]] auto waitAll(JoinHandles&&... handles) -> Task<>
   {
     if constexpr (sizeof...(handles) == 0) {
       co_return;
-    } else if constexpr (requires { std::span(handles...); }) { // span like
-      auto span = std::span(std::forward<JoinHandles>(handles)...);
-      for (auto& handle : span) {
-        co_await handle.join();
-      }
     } else {
       (co_await handles.join(), ...);
     }
@@ -105,7 +111,6 @@ public:
     {
       auto job = handle.promise().getThisJob();
       mPromise = &handle.promise();
-
       Proactor::get().addTimer(std::chrono::steady_clock::now() + mDuration, job);
     }
     auto await_resume() const noexcept -> void {}
@@ -114,7 +119,13 @@ public:
     PromiseBase* mPromise;
     Duration mDuration;
   };
-  auto sleepFor(Duration duration) -> Task<> { co_return co_await SleepAwaiter(duration); }
+  auto sleepFor(Duration duration) -> Task<>
+  {
+    if (duration.count() == 0) {
+      co_return;
+    }
+    co_await SleepAwaiter(duration);
+  }
 
 private:
   const RuntimeKind mType;
