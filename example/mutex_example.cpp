@@ -1,13 +1,13 @@
 #include <coco/runtime.hpp>
 #include <coco/sync.hpp>
 
-static coco::Runtime rt(coco::MT, 4);
+static coco::Runtime rt(coco::MT, 16);
 
 std::size_t counter = 0;
 
 auto incTask(coco::sync::Mutex& mt) -> coco::Task<>
 {
-  for (int i = 0; i < 1'000'00; i++) {
+  for (int i = 0; i < 100'000; i++) {
     co_await mt.lock();
     counter += 1;
     mt.unlock();
@@ -41,7 +41,7 @@ auto main() -> int
   rt.block([]() -> coco::Task<> {
     auto now = std::chrono::steady_clock::now();
     auto mt = coco::sync::Mutex();
-    auto ths = std::vector<coco::JoinHandle<coco::Task<>>>(6);
+    auto ths = std::vector<coco::JoinHandle<coco::Task<>>>(100);
     for (int i = 0; i < ths.size(); i++) {
       ths[i] = rt.spawn(incTask(mt));
     }

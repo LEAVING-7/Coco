@@ -2,7 +2,7 @@
 
 #include "coco/task.hpp"
 
-// FIXME: not efficient
+// TODO: not efficient
 namespace coco::sync {
 class Mutex;
 namespace detail {
@@ -10,7 +10,7 @@ struct [[nodiscard]] MutexLockAwaiter {
   MutexLockAwaiter(Mutex& mt) : mMt(mt) {}
   auto await_ready() const noexcept -> bool;
   template <typename Promise>
-  auto await_suspend(std::coroutine_handle<Promise> awaiting) noexcept -> bool;
+  auto await_suspend(std::coroutine_handle<Promise> awaiting) noexcept -> void;
   auto await_resume() const noexcept -> void {}
 
   Mutex& mMt;
@@ -27,6 +27,7 @@ struct [[nodiscard]] MutexTryLockAwaiter {
   bool mSuccess = false;
 };
 }; // namespace detail
+
 template <typename MutexTy>
 class LockGuard {
 public:
@@ -54,20 +55,23 @@ public:
   {
     mQueueMt.lock();
     if (mWaitQueue.empty()) {
-      mHold.store(false, std::memory_order_release);
       mQueueMt.unlock();
-      return;
+      mHold.store(false, std::memory_order_relaxed);
+      std::atomic_thread_fence(std::memory_order_acq_rel);
+    } else {
+      auto expected = true;
+      auto job = mWaitQueue.popFront();
+      mQueueMt.unlock();
+      assert(mHold.load(std::memory_order_relaxed) == true);
+      mHold.store(true, std::memory_order_relaxed);
+      std::atomic_thread_fence(std::memory_order_acq_rel);
+      Proactor::get().execute(job, ExeOpt::PreferInOne);
     }
-    auto job = mWaitQueue.popFront();
-    mHold.store(false, std::memory_order_release);
-    mQueueMt.unlock();
-    Proactor::get().execute(job, ExeOpt::PreferInOne);
   }
 
 private:
   friend struct detail::MutexLockAwaiter;
   friend struct detail::MutexTryLockAwaiter;
-  friend struct CondVar;
 
   coco::WorkerJobQueue mWaitQueue;
   std::mutex mQueueMt;
@@ -75,19 +79,22 @@ private:
 };
 
 namespace detail {
-inline auto MutexLockAwaiter::await_ready() const noexcept -> bool { return false; }
-template <typename Promise>
-auto MutexLockAwaiter::await_suspend(std::coroutine_handle<Promise> awaiting) noexcept -> bool
+inline auto MutexLockAwaiter::await_ready() const noexcept -> bool
 {
   auto expected = false;
-  if (!mMt.mHold.compare_exchange_strong(expected, true)) {
-    auto job = awaiting.promise().getThisJob();
-    std::scoped_lock lk(mMt.mQueueMt);
-    mMt.mWaitQueue.pushBack(job);
+  if (mMt.mHold.compare_exchange_strong(expected, true)) {
     return true;
   } else {
     return false;
   }
+}
+
+template <typename Promise>
+auto MutexLockAwaiter::await_suspend(std::coroutine_handle<Promise> awaiting) noexcept -> void
+{
+  std::scoped_lock lk(mMt.mQueueMt);
+  auto job = awaiting.promise().getThisJob();
+  mMt.mWaitQueue.pushBack(job);
 }
 
 inline auto MutexTryLockAwaiter::await_ready() const noexcept -> bool { return false; }

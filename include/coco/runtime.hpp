@@ -6,8 +6,8 @@ enum class RuntimeKind {
   Inline,
   Multi,
 };
-constexpr static RuntimeKind MT = RuntimeKind::Multi;
-constexpr static RuntimeKind INL = RuntimeKind::Inline;
+constexpr inline RuntimeKind MT = RuntimeKind::Multi;
+constexpr inline RuntimeKind INL = RuntimeKind::Inline;
 class Runtime {
 public:
   constexpr Runtime(RuntimeKind type, std::size_t threadNum = 0) : mType(type)
@@ -60,7 +60,7 @@ public:
     std::atomic<WorkerJob*>* mDone;
     TaskTy mTask;
   };
-  
+
   template <TaskConcept TaskTy>
   [[nodiscard]] constexpr auto spawn(TaskTy&& task) -> JoinHandle<TaskTy>
   {
@@ -120,6 +120,6 @@ private:
   const RuntimeKind mType;
   std::shared_ptr<Executor> mExecutor;
 };
-template<typename TaskTy>
+template <typename TaskTy>
 using JoinHandle = Runtime::JoinHandle<TaskTy>;
 }; // namespace coco
