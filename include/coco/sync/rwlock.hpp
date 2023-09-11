@@ -34,7 +34,7 @@ public:
   RwLock() = default;
   ~RwLock() = default;
 
-  auto read() { return detail::RwLockReadAwaiter(*this); }
+  auto lockRead() { return detail::RwLockReadAwaiter(*this); }
   auto unlockRead()
   {
     auto writers = popWriter();
@@ -53,7 +53,7 @@ public:
     }
   }
 
-  auto write() { return detail::RwLockWriteAwaiter(*this); }
+  auto lockWrite() { return detail::RwLockWriteAwaiter(*this); }
   auto unlockWrite()
   {
     auto writer = popWriter();

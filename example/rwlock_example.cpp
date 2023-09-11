@@ -7,14 +7,14 @@ static auto rt = coco::Runtime(coco::MT, 4);
 auto reader(coco::sync::RwLock& lock, int i) -> coco::Task<>
 {
   co_await rt.sleepFor(std::chrono::seconds(3));
-  co_await lock.read();
+  co_await lock.lockRead();
   ::printf("data size: %zu\n", data.size());
   lock.unlockRead();
 }
 
 auto writer(coco::sync::RwLock& lock) -> coco::Task<>
 {
-  co_await lock.write();
+  co_await lock.lockWrite();
   ::puts("write data");
   data.push_back(1);
   lock.unlockWrite();
