@@ -23,6 +23,10 @@ if(COCO_BUILD_EXAMPLE)
   target_link_libraries(rwlock_example Coco)
   set_target_properties(rwlock_example PROPERTIES CXX_STANDARD 20)
 
+  add_executable(latch_example latch_example.cpp)
+  target_link_libraries(latch_example Coco)
+  set_target_properties(latch_example PROPERTIES CXX_STANDARD 20)
+
   # add a target run all example
   add_custom_target(run_example
     COMMAND wait_example
