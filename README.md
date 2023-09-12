@@ -2,7 +2,7 @@
 A simple C++ 20 coroutine library, using liburing.
 
 ## Features
-The following is basically completed, but there may still be some bugs. (issues and PRs are welcome)
+The following is basically completed, but there may still be some bugs.
 - [x] `Channel`, `Mutex`, `CondVar`, `RwLock`, `Latch`
 - [x] `TcpStream`, `TcpListener`
 - [x] `MultiThreadExecutor`, `InlineExecutor`
