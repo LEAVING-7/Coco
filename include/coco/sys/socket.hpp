@@ -56,26 +56,31 @@ public:
   {
     return detail::RecvAwaiter(mFd, buf);
   }
-  auto send(std::span<std::byte const> buf, int flags = 0) noexcept -> decltype(auto)
-  {
-    return detail::SendAwaiter(mFd, buf);
-  }
   auto recv(std::span<std::byte> buf, Duration duration) noexcept -> decltype(auto)
   {
     return detail::RecvTimeoutAwaiter(mFd, buf, duration);
+  }
+  auto send(std::span<std::byte const> buf, int flags = 0) noexcept -> decltype(auto)
+  {
+    return detail::SendAwaiter(mFd, buf);
   }
   auto send(std::span<std::byte const> buf, Duration duration) noexcept -> decltype(auto)
   {
     return detail::SendTimeoutAwaiter(mFd, buf, duration);
   }
+  auto sendTo(std::span<std::byte const> buf, SocketAddr const& addr, int flags = 0) noexcept -> decltype(auto)
+  {
+    return detail::SendToAwaiter(mFd, buf, addr);
+  }
+  auto recvFrom(std::span<std::byte> buf, SocketAddr& addr, int flags = 0) noexcept -> decltype(auto)
+  {
+    return detail::RecvFromAwaiter(mFd, buf, addr);
+  }
   auto connect(SocketAddr addr, Duration duration) noexcept -> decltype(auto)
   {
     return detail::ConnectTimeoutAwaiter(mFd, addr, duration);
   }
-  auto accept(Duration duration) noexcept -> decltype(auto)
-  {
-    return detail::AcceptTimeoutAwaiter(mFd, duration);
-  }
+  auto accept(Duration duration) noexcept -> decltype(auto) { return detail::AcceptTimeoutAwaiter(mFd, duration); }
   auto accept(int flags = 0) noexcept -> decltype(auto) { return detail::AcceptAwaiter(mFd); }
   auto connect(SocketAddr addr) noexcept -> decltype(auto) { return detail::ConnectAwaiter(mFd, addr); }
 

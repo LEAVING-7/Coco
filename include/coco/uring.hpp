@@ -40,6 +40,8 @@ public:
 
   auto prepRecv(Token token, int fd, std::span<std::byte> buf, int flag = 0) noexcept -> void;
   auto prepSend(Token token, int fd, std::span<std::byte const> buf, int flag = 0) noexcept -> void;
+  auto prepRecvMsg(Token token, int fd, ::msghdr* msg, unsigned flag = 0) noexcept -> void;
+  auto prepSendMsg(Token token, int fd, ::msghdr* msg, unsigned flag = 0) noexcept -> void;
   auto prepAccept(Token token, int fd, sockaddr* addr, socklen_t* addrlen, int flags = 0) noexcept -> void;
   auto prepConnect(Token token, int fd, sockaddr* addr, socklen_t addrlen) noexcept -> void;
 

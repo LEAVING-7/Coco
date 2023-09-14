@@ -13,7 +13,7 @@ auto print(std::string_view msg, std::errc errc) -> void
 
 static coco::Runtime rt(coco::INL, 4);
 
-auto server() -> coco::Task<int>
+auto server() -> coco::Task<>
 {
   using namespace coco::sys;
   ::puts("server start");
@@ -21,14 +21,14 @@ auto server() -> coco::Task<int>
 
   if (errc != std::errc{0}) {
     print("bind error", errc);
-    co_return 1;
+    co_return;
   }
 
   auto [stream, errc2] = co_await listener.accept();
 
   if (errc2 != std::errc{0}) {
     print("accept error", errc2);
-    co_return 1;
+    co_return;
   }
   ::puts("server accepted");
 
@@ -38,7 +38,7 @@ auto server() -> coco::Task<int>
 
     if (errc2 != std::errc(0)) {
       print("recv error", errc2);
-      co_return 1;
+      co_return;
     }
 
     if (n == 0) {
@@ -48,7 +48,7 @@ auto server() -> coco::Task<int>
     ::printf("server get: %s\n", buf.data());
   }
   ::puts("server end");
-  co_return 0;
+  co_return;
 }
 
 auto client() -> coco::Task<>

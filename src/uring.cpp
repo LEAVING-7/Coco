@@ -35,6 +35,18 @@ auto IoUring::prepSend(Token token, int fd, std::span<std::byte const> buf, int 
   ::io_uring_prep_send(sqe, fd, (void const*)buf.data(), buf.size(), flag);
   ::io_uring_sqe_set_data(sqe, token);
 }
+auto IoUring::prepRecvMsg(Token token, int fd, msghdr* msg, unsigned flag) noexcept -> void
+{
+  auto sqe = fetchSqe();
+  ::io_uring_prep_recvmsg(sqe, fd, msg, flag);
+  ::io_uring_sqe_set_data(sqe, token);
+}
+auto IoUring::prepSendMsg(Token token, int fd, msghdr* msg, unsigned flag) noexcept -> void
+{
+  auto sqe = fetchSqe();
+  ::io_uring_prep_sendmsg(sqe, fd, msg, flag);
+  ::io_uring_sqe_set_data(sqe, token);
+}
 auto IoUring::prepAccept(Token token, int fd, sockaddr* addr, socklen_t* addrlen, int flags) noexcept -> void
 {
   auto sqe = fetchSqe();

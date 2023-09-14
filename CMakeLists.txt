@@ -51,6 +51,7 @@ target_precompile_headers(Coco
   <system_error>
   <utility>
   <vector>
+  <new>
 )
 
 option(COCO_BUILD_EXAMPLE "Build example" ON)

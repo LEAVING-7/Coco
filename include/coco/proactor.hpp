@@ -44,7 +44,6 @@ public:
   }
   auto addTimer(Instant time, WorkerJob* job) noexcept -> void { mTimerManager.addTimer(time, job); }
   auto deleteTimer(void* jobId) noexcept -> void { mTimerManager.deleteTimer(jobId); }
-
   auto processTimers() { return mTimerManager.processTimers(); }
 
   auto notify() -> void
@@ -87,7 +86,16 @@ public:
     mUring.prepUpdateTimeout(token, duration);
   }
   auto prepRemoveTimeout(Token token) -> void { mUring.prepRemoveTimeout(token); }
-
+  auto prepRecvMsg(Token token, int fd, msghdr* msg, unsigned flag = 0) -> void
+  {
+    addPendingSet((WorkerJob*)token);
+    mUring.prepRecvMsg(token, fd, msg, flag);
+  }
+  auto prepSendMsg(Token token, int fd, msghdr* msg, unsigned flag = 0) -> void
+  {
+    addPendingSet((WorkerJob*)token);
+    mUring.prepSendMsg(token, fd, msg, flag);
+  }
   auto prepRead(Token token, int fd, std::span<std::byte> buf, off_t offset) -> void
   {
     addPendingSet((WorkerJob*)token);
@@ -229,12 +237,11 @@ private:
   Executor* mExecutor;
   TimerManager mTimerManager{64};
   IoUring mUring{};
-  std::atomic_bool mNotifyBlocked{false};
+  std::mutex mPendingSet;
+  std::unordered_set<WorkerJob*> mPendingJobs;
 
   std::mutex mCancelMt;
   std::vector<CancelItem> mCancels;
-
-  std::mutex mPendingSet;
-  std::unordered_set<WorkerJob*> mPendingJobs;
+  std::atomic_bool mNotifyBlocked{false};
 };
 } // namespace coco
