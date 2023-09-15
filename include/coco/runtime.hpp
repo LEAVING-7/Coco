@@ -1,6 +1,8 @@
 #pragma once
+#include "coco/blocking_executor.hpp"
 #include "coco/inl_executor.hpp"
 #include "coco/mt_executor.hpp"
+
 namespace coco {
 enum class RuntimeKind {
   Inline,
@@ -10,14 +12,20 @@ constexpr inline RuntimeKind MT = RuntimeKind::Multi;
 constexpr inline RuntimeKind INL = RuntimeKind::Inline;
 class Runtime {
 public:
-  constexpr Runtime(RuntimeKind type, std::size_t threadNum = 0) : mType(type)
+  constexpr Runtime(RuntimeKind type, std::size_t threadNum = 0)
   {
     if (type == RuntimeKind::Inline) {
       mExecutor = std::make_shared<InlExecutor>();
     } else if (type == RuntimeKind::Multi) {
       mExecutor = std::make_shared<MtExecutor>(threadNum);
     }
+    mBlocking = std::make_shared<BlockingExecutor>();
   }
+
+  Runtime(Runtime const&) = default;
+  auto operator=(Runtime const&) -> Runtime& = default;
+  Runtime(Runtime&&) = default;
+  auto operator=(Runtime&&) -> Runtime& = default;
 
   struct [[nodiscard]] JoinAwaiter {
     JoinAwaiter(std::atomic<WorkerJob*>* done) : mDone(done) {}
@@ -127,9 +135,10 @@ public:
     co_await SleepAwaiter(duration);
   }
 
+
 private:
-  const RuntimeKind mType;
   std::shared_ptr<Executor> mExecutor;
+  std::shared_ptr<BlockingExecutor> mBlocking;
 };
 template <typename TaskTy>
 using JoinHandle = Runtime::JoinHandle<TaskTy>;
