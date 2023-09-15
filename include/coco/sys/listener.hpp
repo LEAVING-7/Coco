@@ -11,7 +11,7 @@ public:
 
   static auto bind(SocketAddr const& addr) -> std::pair<TcpListener, std::errc>
   {
-    auto [socket, errc] = Socket::create(addr);
+    auto [socket, errc] = Socket::create(addr, Socket::Stream);
     if (errc != std::errc{0}) {
       return {TcpListener(), errc};
     }

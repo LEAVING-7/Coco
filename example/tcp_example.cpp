@@ -17,7 +17,8 @@ auto server() -> coco::Task<>
 {
   using namespace coco::sys;
   ::puts("server start");
-  auto [listener, errc] = TcpListener::bind(SocketAddr(SocketAddrV4::localhost(2333)));
+  auto addr = SocketAddr(SocketAddrV6::loopback(2333));
+  auto [listener, errc] = TcpListener::bind(addr);
 
   if (errc != std::errc{0}) {
     print("bind error", errc);
@@ -55,7 +56,8 @@ auto client() -> coco::Task<>
 {
   using namespace coco::sys;
   ::puts("client start");
-  auto [client, errc] = co_await TcpStream::connect(SocketAddr(SocketAddrV4::localhost(2333)));
+  auto addr = SocketAddr(SocketAddrV6::loopback(2333));
+  auto [client, errc] = co_await TcpStream::connect(addr);
   if (errc != std::errc(0)) {
     print("connect error", errc);
     co_return;
@@ -94,7 +96,7 @@ auto connect() -> coco::Task<>
 {
   using namespace coco::sys;
   ::puts("client start");
-  auto [client, errc] = co_await TcpStream::connect(SocketAddr(SocketAddrV4::localhost(2333)), 1s);
+  auto [client, errc] = co_await TcpStream::connect(SocketAddr(SocketAddrV4::loopback(2333)), 1s);
   if (errc != std::errc(0)) {
     print("connect error", errc);
     co_return;

@@ -18,9 +18,17 @@ public:
   auto operator=(Socket&& socket) noexcept -> Socket& = default;
   ~Socket() noexcept { close(); }
 
-  static auto create(SocketAddr const& addr) noexcept -> std::pair<Socket, std::errc>
+  enum Kind { Stream, Datagram };
+  static auto create(SocketAddr const& addr, Kind kind) noexcept -> std::pair<Socket, std::errc>
   {
-    return create(addr.domain(), addr.type());
+    int type = kind == Stream ? SOCK_STREAM : SOCK_DGRAM;
+    if (addr.isIpv4()) {
+      return create(AF_INET, type);
+    } else if (addr.isIpv6()) {
+      return create(AF_INET6, type);
+    } else [[unlikely]] {
+      return {-1, std::errc::invalid_argument};
+    }
   }
   static auto create(int domain, int type, int protocol = 0) noexcept -> std::pair<Socket, std::errc>
   {
@@ -33,8 +41,17 @@ public:
 
   auto bind(SocketAddr const& addr) noexcept -> std::errc
   {
-    auto v4 = addr.toV4();
-    return bind(reinterpret_cast<sockaddr const*>(&v4), sizeof(v4));
+    if (addr.isIpv4()) {
+      sockaddr_in addr4;
+      addr.setSys(addr4);
+      return bind(reinterpret_cast<sockaddr*>(&addr4), sizeof(addr4));
+    } else if (addr.isIpv6()) {
+      sockaddr_in6 addr6;
+      addr.setSys(addr6);
+      return bind(reinterpret_cast<sockaddr*>(&addr6), sizeof(addr6));
+    } else [[unlikely]] {
+      return std::errc::invalid_argument;
+    }
   }
   auto bind(sockaddr const* addr, socklen_t len) noexcept -> std::errc
   {

@@ -65,7 +65,7 @@ auto main() -> int
   rt.block([]() -> coco::Task<> {
     using namespace coco::sys;
     ::puts("udp example");
-    auto addr = SocketAddr(SocketAddrV4::localhost(2333));
+    auto addr = SocketAddr(SocketAddrV4::loopback(2333));
     auto st = rt.spawn(server(addr));
     auto ct = rt.spawn(client(addr));
 

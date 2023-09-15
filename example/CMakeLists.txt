@@ -31,6 +31,10 @@ if(COCO_BUILD_EXAMPLE)
   target_link_libraries(udp_example Coco)
   set_target_properties(udp_example PROPERTIES CXX_STANDARD 20)
 
+  add_executable(draft draft.cpp)
+  target_link_libraries(draft Coco)
+  set_target_properties(draft PROPERTIES CXX_STANDARD 20)
+
   # add a target run all example
   add_custom_target(run_example
     COMMAND wait_example

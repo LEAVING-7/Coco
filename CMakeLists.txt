@@ -32,6 +32,7 @@ add_library(Coco STATIC
   src/mt_executor.cpp
   src/inl_executor.cpp
   src/timer.cpp
+  src/sys/socket_addr.cpp
 )
 set_target_properties(Coco PROPERTIES CXX_STANDARD 20)
 target_include_directories(Coco PUBLIC include)
@@ -52,6 +53,7 @@ target_precompile_headers(Coco
   <utility>
   <vector>
   <new>
+  <format>
 )
 
 option(COCO_BUILD_EXAMPLE "Build example" ON)

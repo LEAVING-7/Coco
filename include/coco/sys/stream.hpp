@@ -12,7 +12,7 @@ public:
 
   static auto connect(SocketAddr const& addr) -> coco::Task<std::pair<TcpStream, std::errc>>
   {
-    auto [socket, errc] = Socket::create(addr);
+    auto [socket, errc] = Socket::create(addr, Socket::Stream);
     if (errc != std::errc{0}) {
       co_return {TcpStream(), errc};
     }
@@ -26,7 +26,7 @@ public:
   static auto connect(SocketAddr const& addr, std::chrono::duration<Rep, Period> timeout)
       -> coco::Task<std::pair<TcpStream, std::errc>>
   {
-    auto [socket, errc] = Socket::create(addr);
+    auto [socket, errc] = Socket::create(addr, Socket::Stream);
     if (errc != std::errc{0}) {
       co_return {TcpStream(), errc};
     }

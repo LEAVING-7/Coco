@@ -82,8 +82,8 @@ struct [[nodiscard]] SendAwaiter : SocketAwaiter {
 };
 
 struct [[nodiscard]] SendMsgAwaiter : SocketAwaiter {
-  template <typename... MsgArgs>
-  SendMsgAwaiter(int fd, MsgArgs... args) noexcept : SocketAwaiter(fd), mIoJob(nullptr), mMsg({args...})
+  SendMsgAwaiter(int fd, void* name, socklen_t namelen, ::iovec* iov, std::size_t iovlen) noexcept
+      : SocketAwaiter(fd), mIoJob(nullptr), mMsg{name, namelen, iov, iovlen, nullptr, 0, 0}
   {
   }
   template <typename Promise>
@@ -108,8 +108,8 @@ struct [[nodiscard]] SendMsgAwaiter : SocketAwaiter {
 };
 
 struct [[nodiscard]] RecvMsgAwaiter : SocketAwaiter {
-  template <typename... MsgArgs>
-  RecvMsgAwaiter(int fd, MsgArgs... args) noexcept : SocketAwaiter(fd), mIoJob(nullptr), mMsg({args...})
+  RecvMsgAwaiter(int fd, void* name, socklen_t namelen, ::iovec* iov, std::size_t iovlen) noexcept
+      : SocketAwaiter(fd), mIoJob(nullptr), mMsg{name, namelen, iov, iovlen, nullptr, 0, 0}
   {
   }
   template <typename Promise>
@@ -137,16 +137,34 @@ struct [[nodiscard]] RecvMsgAwaiter : SocketAwaiter {
 inline auto SendToAwaiter(int fd, std::span<std::byte const> buf, SocketAddr addr) noexcept
     -> Task<std::pair<std::size_t, std::errc>>
 {
-  auto v4 = addr.toV4();
   ::iovec iov = {(void*)buf.data(), buf.size()};
-  co_return co_await SendMsgAwaiter(fd, (void*)&v4, (socklen_t)sizeof(v4), &iov, 1ul, nullptr, 0ul, 0);
+  if (addr.isIpv6()) {
+    sockaddr_in6 v6;
+    addr.setSys(v6);
+    co_return co_await SendMsgAwaiter(fd, (void*)&v6, (socklen_t)sizeof(v6), &iov, 1ul);
+  } else if (addr.isIpv4()) {
+    sockaddr_in v4;
+    addr.setSys(v4);
+    co_return co_await SendMsgAwaiter(fd, (void*)&v4, (socklen_t)sizeof(v4), &iov, 1ul);
+  } else {
+    co_return {0, std::errc::invalid_argument};
+  }
 }
 inline auto RecvFromAwaiter(int fd, std::span<std::byte> buf, SocketAddr addr) noexcept
     -> Task<std::pair<std::size_t, std::errc>>
 {
-  auto v4 = addr.toV4();
   ::iovec iov = {(void*)buf.data(), buf.size()};
-  co_return co_await RecvMsgAwaiter(fd, &v4, (socklen_t)sizeof(v4), &iov, 1ul, nullptr, 0ul, 0);
+  if (addr.isIpv6()) {
+    sockaddr_in6 v6;
+    socklen_t len = sizeof(v6);
+    co_return co_await RecvMsgAwaiter(fd, (void*)&v6, len, &iov, 1ul);
+  } else if (addr.isIpv4()) {
+    sockaddr_in v4;
+    socklen_t len = sizeof(v4);
+    co_return co_await RecvMsgAwaiter(fd, (void*)&v4, len, &iov, 1ul);
+  } else {
+    co_return {0, std::errc::invalid_argument};
+  }
 }
 
 struct [[nodiscard]] ConnectAwaiter : SocketAwaiter {
@@ -157,8 +175,15 @@ struct [[nodiscard]] ConnectAwaiter : SocketAwaiter {
   {
     auto job = &handle.promise();
     mIoJob.mPending = job;
-    auto v4 = mAddr.toV4();
-    Proactor::get().prepConnect(&mIoJob, mFd, (sockaddr*)&v4, sizeof(v4));
+    if (mAddr.isIpv6()) {
+      sockaddr_in6 v6;
+      mAddr.setSys(v6);
+      Proactor::get().prepConnect(&mIoJob, mFd, (sockaddr*)&v6, sizeof(v6));
+    } else if (mAddr.isIpv4()) {
+      sockaddr_in v4;
+      mAddr.setSys(v4);
+      Proactor::get().prepConnect(&mIoJob, mFd, (sockaddr*)&v4, sizeof(v4));
+    }
   }
   auto await_resume() noexcept -> std::errc
   {
@@ -309,8 +334,15 @@ struct [[nodiscard]] ConnectTimeoutAwaiter : ConnectAwaiter {
     mIoJob.mPending = job;
 
     mProactor = &Proactor::get();
-    auto v4 = mAddr.toV4();
-    mProactor->prepConnect(&mIoJob, mFd, (sockaddr*)&v4, sizeof(v4));
+    if (mAddr.isIpv4()) {
+      sockaddr_in v4;
+      mAddr.setSys(v4);
+      mProactor->prepConnect(&mIoJob, mFd, (sockaddr*)&v4, sizeof(v4));
+    } else if (mAddr.isIpv6()) {
+      sockaddr_in6 v6;
+      mAddr.setSys(v6);
+      mProactor->prepConnect(&mIoJob, mFd, (sockaddr*)&v6, sizeof(v6));
+    }
     mProactor->prepTimeout(&mIoJob, mTimeout);
   }
 

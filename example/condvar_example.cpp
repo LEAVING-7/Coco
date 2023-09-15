@@ -22,6 +22,6 @@ auto main() -> int
     co_await rt.sleepFor(std::chrono::seconds(3));
     ::printf("notify all\n");
     cv.notifyAll();
-    co_await rt.waitAll(workers);
+    co_await rt.waitAll(std::span(workers));
   }());
 }

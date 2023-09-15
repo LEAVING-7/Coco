@@ -9,8 +9,7 @@ public:
 
   static auto bind(SocketAddr const& addr) -> std::pair<UdpSocket, std::errc>
   {
-    // TODO: remove AF_INET
-    auto [socket, errc] = Socket::create(AF_INET, SOCK_DGRAM);
+    auto [socket, errc] = Socket::create(addr, Socket::Datagram);
     if (errc != std::errc{0}) {
       return {UdpSocket(), errc};
     }
@@ -24,8 +23,7 @@ public:
   }
   static auto create(SocketAddr const& addr) noexcept -> std::pair<UdpSocket, std::errc>
   {
-    // TODO: remove AF_INET
-    auto [socket, errc] = Socket::create(AF_INET, SOCK_DGRAM);
+    auto [socket, errc] = Socket::create(addr, Socket::Datagram);
     if (errc != std::errc{0}) {
       return {UdpSocket(), errc};
     } else {

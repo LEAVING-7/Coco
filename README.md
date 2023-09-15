@@ -8,6 +8,7 @@ The following is basically completed, but there may still be some bugs.
 - [x] `MultiThreadExecutor`, `InlineExecutor`
 - [x] `waitAll`, `sleepFor`, `sleepUntil`
 - [x] **File IO**
+- [x] Support IPv6 and IPv4
 
 
 ## Example
