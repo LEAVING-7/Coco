@@ -129,7 +129,7 @@ public:
       co_return;
     }
     auto now = std::chrono::steady_clock::now();
-    co_await SleepAwaiter(now + duration);
+    co_await SleepAwaiter(now + std::chrono::duration_cast<Duration>(duration));
   }
   auto sleepUntil(Instant time) -> Task<>
   {
