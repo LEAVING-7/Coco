@@ -120,4 +120,5 @@ auto main1() -> int
     ::puts("everything done");
     co_return;
   }());
+  return 0;
 }

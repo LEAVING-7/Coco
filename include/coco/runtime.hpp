@@ -1,4 +1,5 @@
 #pragma once
+
 #include "coco/blocking_executor.hpp"
 #include "coco/inl_executor.hpp"
 #include "coco/mt_executor.hpp"
@@ -12,20 +13,14 @@ constexpr inline RuntimeKind MT = RuntimeKind::Multi;
 constexpr inline RuntimeKind INL = RuntimeKind::Inline;
 class Runtime {
 public:
-  constexpr Runtime(RuntimeKind type, std::size_t threadNum = 0)
+  constexpr Runtime(RuntimeKind type, std::size_t threadNum = 4) : mBlockingThreadsMax(500), mBlocking(nullptr)
   {
     if (type == RuntimeKind::Inline) {
       mExecutor = std::make_shared<InlExecutor>();
     } else if (type == RuntimeKind::Multi) {
       mExecutor = std::make_shared<MtExecutor>(threadNum);
     }
-    mBlocking = std::make_shared<BlockingExecutor>();
   }
-
-  Runtime(Runtime const&) = default;
-  auto operator=(Runtime const&) -> Runtime& = default;
-  Runtime(Runtime&&) = default;
-  auto operator=(Runtime&&) -> Runtime& = default;
 
   struct [[nodiscard]] JoinAwaiter {
     JoinAwaiter(std::atomic<WorkerJob*>* done) : mDone(done) {}
@@ -111,7 +106,7 @@ public:
   auto block(Task<> task) -> void { mExecutor->runMain(std::move(task)); }
 
   struct [[nodiscard]] SleepAwaiter {
-    SleepAwaiter(Duration duration) : mDuration(duration) {}
+    SleepAwaiter(Instant instant) : mInstant(instant) {}
 
     auto await_ready() const noexcept -> bool { return false; }
     template <typename Promise>
@@ -119,26 +114,94 @@ public:
     {
       auto job = handle.promise().getThisJob();
       mPromise = &handle.promise();
-      Proactor::get().addTimer(std::chrono::steady_clock::now() + mDuration, job);
+      Proactor::get().addTimer(mInstant, job);
     }
     auto await_resume() const noexcept -> void {}
 
   private:
     PromiseBase* mPromise;
-    Duration mDuration;
+    Instant mInstant;
   };
-  auto sleepFor(Duration duration) -> Task<>
+  template <typename Rep, typename Period>
+  auto sleepFor(std::chrono::duration<Rep, Period> duration) -> Task<>
   {
     if (duration.count() == 0) {
       co_return;
     }
-    co_await SleepAwaiter(duration);
+    auto now = std::chrono::steady_clock::now();
+    co_await SleepAwaiter(now + duration);
+  }
+  auto sleepUntil(Instant time) -> Task<>
+  {
+    auto now = std::chrono::steady_clock::now();
+    if (time <= now) {
+      co_return;
+    }
+    co_await SleepAwaiter(time);
   }
 
+  template <typename FnTy>
+  struct BlockOnJob : WorkerJob {
+    using result_type = std::invoke_result_t<FnTy>;
+    BlockOnJob(Runtime* rt, PromiseBase* next, FnTy&& fn)
+        : WorkerJob(run, nullptr), mRuntime(rt), mNextPromise(next), mFn(std::forward<FnTy>(fn))
+    {
+    }
+
+    static auto run(WorkerJob* job, void* /* arg */) noexcept -> void
+    {
+      auto self = static_cast<BlockOnJob*>(job);
+      try {
+        self->mResult = self->mFn();
+      } catch (...) {
+        self->mNextPromise->setExeception(std::current_exception());
+      }
+      self->mRuntime->mExecutor.get()->execute(self->mNextPromise->getThisJob(), ExeOpt::Balance);
+    }
+    result_type mResult;
+    FnTy mFn;
+    Runtime* mRuntime;
+    PromiseBase* mNextPromise;
+  };
+
+  template <typename Fn>
+  struct [[nodiscard]] BlockOnAwaiter {
+    using result_type = std::invoke_result_t<Fn>;
+    BlockOnAwaiter(Runtime* rt, Fn&& fn) : mJob(rt, nullptr, std::forward<Fn>(fn)) {}
+
+    auto await_ready() const noexcept -> bool { return false; }
+    template <typename Promise>
+    auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
+    {
+      mJob.mNextPromise = &handle.promise();
+      mJob.mRuntime->mBlocking.get()->execute(&mJob);
+    }
+    auto await_resume() const -> result_type
+    {
+      if (mJob.mNextPromise->hasException()) {
+        std::rethrow_exception(mJob.mNextPromise->currentException());
+      }
+      return std::move(mJob.mResult);
+    }
+
+    BlockOnJob<Fn> mJob;
+  };
+
+  // FIXME !! this function is not exception safe, i guess
+  template <std::invocable Fn, typename... Args>
+  [[nodiscard]] auto blockOn(Fn&& fn, Args... args)
+  {
+    if (mBlocking == nullptr) {
+      std::call_once(mBlockingOnceFlag, [&]() { mBlocking = std::make_shared<BlockingExecutor>(mBlockingThreadsMax); });
+    }
+    return BlockOnAwaiter{this, [&]() -> decltype(auto) { return fn(args...); }};
+  }
 
 private:
   std::shared_ptr<Executor> mExecutor;
   std::shared_ptr<BlockingExecutor> mBlocking;
+  std::once_flag mBlockingOnceFlag;
+  std::uint32_t mBlockingThreadsMax;
 };
 template <typename TaskTy>
 using JoinHandle = Runtime::JoinHandle<TaskTy>;

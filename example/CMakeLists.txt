@@ -35,6 +35,10 @@ if(COCO_BUILD_EXAMPLE)
   target_link_libraries(draft Coco)
   set_target_properties(draft PROPERTIES CXX_STANDARD 20)
 
+  add_executable(block_on_example block_on_example.cpp)
+  target_link_libraries(block_on_example Coco)
+  set_target_properties(block_on_example PROPERTIES CXX_STANDARD 20)
+
   # add a target run all example
   add_custom_target(run_example
     COMMAND wait_example

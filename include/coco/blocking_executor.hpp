@@ -1,4 +1,5 @@
 #pragma once
+
 #include "coco/task.hpp"
 #include "coco/util/panic.hpp"
 
@@ -69,7 +70,7 @@ class BlockingExecutor {
 public:
   BlockingExecutor(std::size_t threadLimit) : mPool(threadLimit) {}
   ~BlockingExecutor() = default;
-  auto execute(WorkerJob* handle, ExeOpt opt) noexcept -> void { mPool.enqueue(handle); }
+  auto execute(WorkerJob* handle) noexcept -> void { mPool.enqueue(handle); }
   BlockingThreadPool mPool;
 };
 } // namespace coco

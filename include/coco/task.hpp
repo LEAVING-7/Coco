@@ -11,7 +11,7 @@
 namespace coco {
 struct PromiseBase {
   struct CoroJob : WorkerJob {
-    CoroJob(PromiseBase* promise, WorkerJob::Fn run) noexcept : promise(promise), WorkerJob(run, nullptr) {}
+    CoroJob(PromiseBase* promise, WorkerJob::WorkerFn run) noexcept : promise(promise), WorkerJob(run, nullptr) {}
     static auto run(WorkerJob* job, void* args) noexcept -> void
     {
       auto coroJob = static_cast<CoroJob*>(job);
@@ -51,6 +51,10 @@ struct PromiseBase {
 
   auto setNextJob(WorkerJob* next) noexcept -> void { mNextJob = next; }
   auto getNextJob() noexcept -> std::atomic<WorkerJob*>& { return mNextJob; }
+
+  auto setExeception(std::exception_ptr exceptionPtr) noexcept -> void { mExceptionPtr = exceptionPtr; }
+  auto hasException() const noexcept -> bool { return mExceptionPtr != nullptr; }
+  auto currentException() const noexcept -> std::exception_ptr { return mExceptionPtr; }
 
   CoroJob mThisJob{this, &CoroJob::run};
   std::coroutine_handle<> mThisHandle;

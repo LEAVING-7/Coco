@@ -19,10 +19,10 @@ enum class JobState : std::uint16_t {
 };
 
 struct WorkerJob {
-  using Fn = void (*)(WorkerJob* task, void* args) noexcept;
-  WorkerJob(Fn fn, std::atomic<JobState>* state) noexcept : run(fn), next(nullptr), state(state) {}
+  using WorkerFn = void (*)(WorkerJob* task, void* args) noexcept;
+  WorkerJob(WorkerFn fn, std::atomic<JobState>* state) noexcept : run(fn), next(nullptr), state(state) {}
 
-  Fn run;
+  WorkerFn run;
   WorkerJob* next;
   std::atomic<JobState>* state;
 };

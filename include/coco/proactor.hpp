@@ -27,6 +27,7 @@ public:
   ~Proactor() = default;
 
   auto attachExecutor(Executor* executor) noexcept -> void { mExecutor = executor; }
+  auto getExecutor() const noexcept -> Executor* { return mExecutor; }
   auto execute(WorkerJobQueue&& queue, ExeOpt opt = ExeOpt::Balance) noexcept -> void
   {
     mExecutor->execute(std::move(queue), 0, opt);
