@@ -1,7 +1,6 @@
 #include "coco/mt_executor.hpp"
 
 namespace coco {
-
 IoUring::IoUring()
 {
   if (auto r = ::io_uring_queue_init(kIoUringQueueSize, &mUring, 0); r != 0) {
@@ -13,6 +12,7 @@ IoUring::IoUring()
   }
   auto sqe = fetchSqe();
   ::io_uring_prep_poll_multishot(sqe, mEventFd, POLLIN);
+  ::io_uring_sqe_set_data(sqe, nullptr);
   ::io_uring_submit(&mUring);
 }
 IoUring::~IoUring()
@@ -51,6 +51,12 @@ auto IoUring::prepAccept(Token token, int fd, sockaddr* addr, socklen_t* addrlen
 {
   auto sqe = fetchSqe();
   ::io_uring_prep_accept(sqe, fd, addr, addrlen, flags);
+  ::io_uring_sqe_set_data(sqe, token);
+}
+auto IoUring::prepAcceptMt(Token token, int fd, sockaddr* addr, socklen_t* addrlen, int flags) noexcept -> void
+{
+  auto sqe = fetchSqe();
+  ::io_uring_prep_multishot_accept(sqe, fd, addr, addrlen, flags);
   ::io_uring_sqe_set_data(sqe, token);
 }
 auto IoUring::prepConnect(Token token, int fd, sockaddr* addr, socklen_t addrlen) noexcept -> void
@@ -106,7 +112,7 @@ auto IoUring::notify() noexcept -> void
 auto IoUring::fetchSqe() -> io_uring_sqe*
 {
   auto sqe = ::io_uring_get_sqe(&mUring);
-  if (sqe == nullptr) {
+  if (sqe == nullptr) [[unlikely]] {
     throw std::runtime_error("sqe full"); // TODO: better without exception.
   }
   return sqe;

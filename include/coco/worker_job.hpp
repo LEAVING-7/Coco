@@ -37,14 +37,25 @@ inline auto runJob(WorkerJob* job, void* args) noexcept -> void
 
 inline auto emptyFn(WorkerJob*, void*) noexcept -> void { assert(false && "empty job should not be executed"); }
 inline WorkerJob emptyJob{emptyFn, nullptr};
+inline WorkerJob detachJob{emptyFn, nullptr};
+
+inline std::atomic<JobState> multishotAccept{JobState::Ready};
+inline std::atomic<JobState> multishotNofiy{JobState::Ready};
 
 template <typename T = void>
 struct Task;
 
-enum class ExeOpt {
-  Balance,
-  PreferInOne,
-  ForceInOne,
+struct ExeOpt {
+  std::uint16_t mTid;
+  enum Opt {
+    Balance,
+    PreferInOne,
+    ForceInOne,
+  } mOpt = Balance;
+
+  ExeOpt() = default;
+  ExeOpt(Opt opt) : mOpt(opt) {}
+  ExeOpt(Opt opt, std::uint16_t tid) : mTid(tid), mOpt(opt) {}
 };
 
 class Executor {

@@ -12,8 +12,8 @@ public:
   InlExecutor() : mState(State::Waiting) { mProactor = &Proactor::get(); }
   virtual ~InlExecutor() noexcept { forceStop(); };
 
-  auto execute(WorkerJobQueue&& queue, std::size_t count, ExeOpt opt = ExeOpt::Balance) noexcept -> void override;
-  auto execute(WorkerJob* handle, ExeOpt opt = ExeOpt::Balance) noexcept -> void override;
+  auto execute(WorkerJobQueue&& queue, std::size_t count, ExeOpt opt) noexcept -> void override;
+  auto execute(WorkerJob* handle, ExeOpt opt) noexcept -> void override;
   auto runMain(Task<> task) -> void override;
 
   auto forceStop() -> void;

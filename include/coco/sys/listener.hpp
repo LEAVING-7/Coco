@@ -45,6 +45,11 @@ public:
     }
     co_return {TcpStream::from(std::move(socket)), std::errc{0}};
   }
+
+  // auto acceptMulitshot(Task<> task) noexcept -> -
+  // {
+  // }
+
   auto recv(std::span<std::byte> buf) noexcept -> decltype(auto) { return Socket::recv(buf); }
   auto send(std::span<std::byte const> buf) noexcept -> decltype(auto) { return Socket::send(buf); }
   auto sendTimeout(std::span<std::byte const> buf, std::chrono::milliseconds timeout) noexcept -> decltype(auto)
@@ -57,6 +62,7 @@ public:
   }
 
 private:
+  bool mShot = false;
   TcpListener(Socket&& socket) noexcept : Socket(std::move(socket)) {}
 };
 } // namespace coco::sys

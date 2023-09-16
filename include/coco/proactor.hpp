@@ -19,8 +19,8 @@ class Proactor {
 public:
   static auto get() noexcept -> Proactor&
   {
-    static thread_local auto instance = Proactor();
-    return instance;
+    static thread_local auto instance = std::make_shared<Proactor>();
+    return *instance;
   }
 
   Proactor() = default;
@@ -68,6 +68,11 @@ public:
   {
     addPendingSet((WorkerJob*)token);
     mUring.prepAccept(token, fd, addr, addrlen, flags);
+  }
+  auto prepAcceptMt(Token token, int fd, sockaddr* addr, socklen_t* addrlen, int flags = 0) -> void
+  {
+    addPendingSet((WorkerJob*)token);
+    mUring.prepAcceptMt(token, fd, addr, addrlen, flags);
   }
   auto prepConnect(Token token, int fd, sockaddr* addr, socklen_t addrlen) -> void
   {
@@ -160,7 +165,7 @@ private:
       // error occured
     } else if (cqe != nullptr) {
       if (cqe->flags & IORING_CQE_F_MORE) {
-        mNotifyBlocked.store(false);
+        processMore(cqe);
       } else {
         doIoJob(cqe);
       }
@@ -180,7 +185,7 @@ private:
     io_uring_for_each_cqe(mUring.uring(), head, cqe)
     {
       if (cqe->flags & IORING_CQE_F_MORE) {
-        mNotifyBlocked.store(false);
+        processMore(cqe);
       } else {
         doIoJob(cqe);
       }
@@ -208,6 +213,15 @@ private:
   }
 
 private:
+  auto processMore(::io_uring_cqe* cqe) -> void
+  {
+    if (cqe->user_data == 0) {
+      mNotifyBlocked.store(false);
+    } else {
+      runJob((WorkerJob*)cqe->user_data, &cqe->res);
+    }
+  }
+
   auto doIoJob(::io_uring_cqe* cqe) noexcept -> void
   {
     auto job = (WorkerJob*)cqe->user_data;

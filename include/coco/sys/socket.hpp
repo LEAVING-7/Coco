@@ -99,6 +99,10 @@ public:
   }
   auto accept(Duration duration) noexcept -> decltype(auto) { return detail::AcceptTimeoutAwaiter(mFd, duration); }
   auto accept(int flags = 0) noexcept -> decltype(auto) { return detail::AcceptAwaiter(mFd); }
+  auto addAcceptMultishot(WorkerJob* job, int flags = 0)
+  {
+    return Proactor::get().prepAcceptMt(job, mFd, nullptr, nullptr, flags);
+  }
   auto connect(SocketAddr addr) noexcept -> decltype(auto) { return detail::ConnectAwaiter(mFd, addr); }
 
   auto setopt(int level, int optname, void const* optval, socklen_t optlen) noexcept -> std::errc

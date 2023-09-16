@@ -9,8 +9,8 @@
 #include <chrono>
 #include <coroutine>
 
-#if !IO_URING_CHECK_VERSION(2, 5)
-  #error "current io_uring version not support"
+#if !IO_URING_CHECK_VERSION(2, 4)
+  #error "current liburing version is not supported"
 #endif
 
 namespace coco {
@@ -18,7 +18,7 @@ class Worker;
 class WorkerJob;
 class MtExecutor;
 
-constexpr std::uint32_t kIoUringQueueSize = 1024;
+constexpr std::uint32_t kIoUringQueueSize = 2048;
 using Token = void*;
 
 template <typename Rep, typename Ratio>
@@ -43,6 +43,7 @@ public:
   auto prepRecvMsg(Token token, int fd, ::msghdr* msg, unsigned flag = 0) noexcept -> void;
   auto prepSendMsg(Token token, int fd, ::msghdr* msg, unsigned flag = 0) noexcept -> void;
   auto prepAccept(Token token, int fd, sockaddr* addr, socklen_t* addrlen, int flags = 0) noexcept -> void;
+  auto prepAcceptMt(Token token, int fd, sockaddr* addr, socklen_t* addrlen, int flags = 0) noexcept -> void;
   auto prepConnect(Token token, int fd, sockaddr* addr, socklen_t addrlen) noexcept -> void;
 
   auto prepRead(Token token, int fd, std::span<std::byte> buf, off_t offset) noexcept -> void;

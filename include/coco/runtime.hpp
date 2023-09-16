@@ -197,6 +197,13 @@ public:
     return BlockOnAwaiter{this, [&]() -> decltype(auto) { return fn(args...); }};
   }
 
+  auto spawnDetach(Task<> task) -> void
+  {
+    task.promise().setNextJob(&detachJob);
+    mExecutor.get()->execute(task.promise().getThisJob(), ExeOpt::PreferInOne);
+    [[maybe_unused]] auto dummy = task.take();
+  }
+
 private:
   std::shared_ptr<Executor> mExecutor;
   std::shared_ptr<BlockingExecutor> mBlocking;

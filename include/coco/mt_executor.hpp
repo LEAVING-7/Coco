@@ -4,6 +4,7 @@
 #include "coco/task.hpp"
 #include "coco/timer.hpp"
 #include "coco/util/lockfree_queue.hpp"
+#include "coco/util/panic.hpp"
 
 #include <chrono>
 #include <coroutine>
@@ -27,12 +28,11 @@ public:
     auto state = mState.load(std::memory_order_relaxed);
     if (state == State::Stop) [[unlikely]] {
       return false;
-    } else if (state == State::Waiting || state == State::Executing) {
+    } else {
       pushTask(std::move<T>(task));
       notify();
       return true;
     }
-    assert(0);
   }
 
   template <typename T>
@@ -41,14 +41,13 @@ public:
     auto state = mState.load(std::memory_order_relaxed);
     if (state == State::Stop) [[unlikely]] {
       return false;
-    } else if (state == State::Waiting || state == State::Executing) {
+    } else {
       auto b = tryPushTask(std::move(task));
       if (b) {
         notify();
       }
       return b;
     }
-    assert(0);
   }
 
   auto forceStop() -> void;

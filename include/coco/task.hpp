@@ -29,11 +29,19 @@ struct PromiseBase {
       auto& promise = handle.promise();
 
       auto next = promise.mNextJob.exchange(nullptr);
-      if (next != &emptyJob && next != nullptr) {
+      if (next == nullptr) {
+        if (promise.getState() != nullptr) {
+          promise.getState()->store(JobState::Final, std::memory_order_release);
+          promise.getState()->notify_one();
+        }
+      } else if (next == &detachJob) {
+        if (promise.getState() != nullptr) {
+          promise.getState()->store(JobState::Final, std::memory_order_release);
+          promise.getState()->notify_one();
+        }
+        promise.mThisHandle.destroy();
+      } else if (next != &emptyJob) {
         Proactor::get().execute(next);
-      } else if (next == nullptr) {
-        promise.getState()->store(JobState::Final, std::memory_order_release);
-        promise.getState()->notify_one();
       }
     }
     auto await_resume() noexcept -> void {}
