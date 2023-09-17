@@ -92,7 +92,7 @@ private:
     requires std::is_same_v<WorkerJobQueue, T> || std::is_base_of_v<WorkerJob, std::remove_pointer_t<T>>
   {
     auto nextIdx = opt.mOpt == ExeOpt::Balance ? mNextWorker.fetch_add(1, std::memory_order_relaxed)
-                                               : mNextWorker.load(std::memory_order_relaxed);
+                                                 : mNextWorker.load(std::memory_order_relaxed);
     auto startIdx = nextIdx % mThreadCount;
     for (std::uint32_t i = 0; i < mThreadCount; i++) {
       auto const idx = (startIdx + i) < mThreadCount ? (startIdx + i) : (startIdx + i - mThreadCount);

@@ -41,11 +41,11 @@ public:
     if (writers != nullptr) {
       mState.store(LockState::Write, std::memory_order_relaxed);
       std::atomic_thread_fence(std::memory_order_acq_rel);
-      Proactor::get().execute(writers, ExeOpt::PreferInOne);
+      Proactor::get().execute(writers, ExeOpt::prefInOne());
     } else {
       auto readers = popReaders();
       if (!readers.empty()) {
-        Proactor::get().execute(std::move(readers), ExeOpt::PreferInOne);
+        Proactor::get().execute(std::move(readers), ExeOpt::prefInOne());
       } else {
         mState.store(LockState::Free, std::memory_order_relaxed);
         std::atomic_thread_fence(std::memory_order_acq_rel);
@@ -58,13 +58,13 @@ public:
   {
     auto writer = popWriter();
     if (writer != nullptr) {
-      Proactor::get().execute(writer, ExeOpt::PreferInOne);
+      Proactor::get().execute(writer, ExeOpt::prefInOne());
     } else {
       auto readers = popReaders();
       if (!readers.empty()) {
         mState.store(LockState::Read, std::memory_order_relaxed);
         std::atomic_thread_fence(std::memory_order_acq_rel);
-        Proactor::get().execute(std::move(readers), ExeOpt::PreferInOne);
+        Proactor::get().execute(std::move(readers), ExeOpt::prefInOne());
       } else {
         mState.store(LockState::Free, std::memory_order_relaxed);
         std::atomic_thread_fence(std::memory_order_acq_rel);

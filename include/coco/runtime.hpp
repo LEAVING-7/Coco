@@ -156,7 +156,7 @@ public:
       } catch (...) {
         self->mNextPromise->setExeception(std::current_exception());
       }
-      self->mRuntime->mExecutor.get()->execute(self->mNextPromise->getThisJob(), ExeOpt::Balance);
+      self->mRuntime->mExecutor.get()->execute(self->mNextPromise->getThisJob(), ExeOpt::balance());
     }
     result_type mResult;
     FnTy mFn;
@@ -200,7 +200,7 @@ public:
   auto spawnDetach(Task<> task) -> void
   {
     task.promise().setNextJob(&detachJob);
-    mExecutor.get()->execute(task.promise().getThisJob(), ExeOpt::create(0, ExeOpt::PreferInOne, ExeOpt::Low));
+    mExecutor.get()->execute(task.promise().getThisJob(), ExeOpt::prefInOne());
     [[maybe_unused]] auto dummy = task.take();
   }
 

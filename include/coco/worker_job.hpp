@@ -63,8 +63,11 @@ struct ExeOpt {
   {
     return {.mTid = tid, .mOpt = opt, .mPri = pri};
   }
-  constexpr static auto prefInOne() noexcept -> ExeOpt { return {.mTid = 0, .mOpt = PreferInOne, .mPri = Low}; }
-  constexpr static auto balance() noexcept -> ExeOpt { return {.mTid = 0, .mOpt = Balance, .mPri = Low}; }
+  constexpr static auto prefInOne(Pri pri = Low) noexcept -> ExeOpt
+  {
+    return {.mTid = 0, .mOpt = PreferInOne, .mPri = pri};
+  }
+  constexpr static auto balance(Pri pri = Low) noexcept -> ExeOpt { return {.mTid = 0, .mOpt = Balance, .mPri = pri}; }
 };
 
 class Executor {

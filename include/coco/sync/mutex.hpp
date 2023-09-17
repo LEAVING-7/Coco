@@ -49,7 +49,7 @@ public:
       assert(mHold.load(std::memory_order_relaxed) == true);
       mHold.store(true, std::memory_order_relaxed);
       std::atomic_thread_fence(std::memory_order_acq_rel);
-      Proactor::get().execute(job, ExeOpt::PreferInOne);
+      Proactor::get().execute(job, ExeOpt::prefInOne());
     }
   }
 

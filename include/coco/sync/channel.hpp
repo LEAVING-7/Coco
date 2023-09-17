@@ -44,8 +44,8 @@ public:
   {
     std::scoped_lock lk(mMt);
     mClosed = true;
-    Proactor::get().execute(std::move(mReaders));
-    Proactor::get().execute(std::move(mWriter));
+    Proactor::get().execute(std::move(mReaders), ExeOpt::balance());
+    Proactor::get().execute(std::move(mWriter), ExeOpt::balance());
   }
 
 private:
@@ -74,7 +74,7 @@ auto ChannelReadAwaiter<T, N>::await_suspend(std::coroutine_handle<Promise> hand
     for (int i = 0; i < mChannel.mBuffer.size() && !mChannel.mWriter.empty(); i++) {
       tmp.pushBack(mChannel.mWriter.popFront());
     }
-    Proactor::get().execute(std::move(tmp), ExeOpt::PreferInOne);
+    Proactor::get().execute(std::move(tmp), ExeOpt::prefInOne());
     return true;
   } else {
     mVal = mChannel.mBuffer.pop();
@@ -83,7 +83,7 @@ auto ChannelReadAwaiter<T, N>::await_suspend(std::coroutine_handle<Promise> hand
     for (int i = 0; i < mChannel.mBuffer.size() && !mChannel.mWriter.empty(); i++) {
       tmp.pushBack(mChannel.mWriter.popFront());
     }
-    Proactor::get().execute(std::move(tmp), ExeOpt::PreferInOne);
+    Proactor::get().execute(std::move(tmp), ExeOpt::prefInOne());
     return false;
   }
 }
@@ -118,7 +118,7 @@ auto ChannelWriteAwaiter<T, N>::await_suspend(std::coroutine_handle<Promise> han
     for (int i = 0; i < mChannel.mBuffer.size() && !mChannel.mReaders.empty(); i++) {
       tmp.pushBack(mChannel.mReaders.popFront());
     }
-    Proactor::get().execute(std::move(tmp), ExeOpt::PreferInOne);
+    Proactor::get().execute(std::move(tmp), ExeOpt::prefInOne());
     return true;
   } else {
     mChannel.mBuffer.push(std::move(*mVal));
@@ -127,7 +127,7 @@ auto ChannelWriteAwaiter<T, N>::await_suspend(std::coroutine_handle<Promise> han
     for (int i = 0; i < mChannel.mBuffer.size() && !mChannel.mReaders.empty(); i++) {
       tmp.pushBack(mChannel.mReaders.popFront());
     }
-    Proactor::get().execute(std::move(tmp), ExeOpt::PreferInOne);
+    Proactor::get().execute(std::move(tmp), ExeOpt::prefInOne());
     return false;
   }
 }

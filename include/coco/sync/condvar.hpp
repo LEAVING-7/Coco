@@ -28,7 +28,7 @@ public:
     }
     mQueueMt.unlock();
     if (job) {
-      Proactor::get().execute(job, ExeOpt::PreferInOne);
+      Proactor::get().execute(job, ExeOpt::prefInOne());
     }
   }
   auto notifyAll() -> void
@@ -37,7 +37,7 @@ public:
     while (!mWaitQueue.empty()) {
       auto job = mWaitQueue.popFront();
       mQueueMt.unlock();
-      Proactor::get().execute(job, ExeOpt::Balance);
+      Proactor::get().execute(job, ExeOpt::balance());
       mQueueMt.lock();
     }
   }
