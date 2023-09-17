@@ -207,7 +207,7 @@ struct [[nodiscard]] AcceptAwaiter : SocketAwaiter {
   {
     auto job = &handle.promise();
     mIoJob.mPending = job;
-    mIoJob.mOpt = ExeOpt::balance(ExeOpt::High);
+    mIoJob.mOpt = ExeOpt::prefInOne(ExeOpt::High);
     Proactor::get().prepAccept(&mIoJob, mFd, nullptr, nullptr);
   }
 
