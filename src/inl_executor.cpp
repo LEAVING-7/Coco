@@ -57,9 +57,9 @@ auto InlExecutor::execute(WorkerJobQueue&& queue, std::size_t count, ExeOpt opt)
 auto InlExecutor::execute(WorkerJob* handle, ExeOpt opt) noexcept -> void { mTaskQueue.pushBack(handle); }
 auto InlExecutor::runMain(Task<> task) -> void
 {
-  Proactor::get().attachExecutor(this);
+  Proactor::get().attachExecutor(this, 0);
   task.promise().setState(&mMainTaskState);
-  execute(task.promise().getThisJob());
+  execute(task.promise().getThisJob(), {});
   processTasks();
   loop();
 }

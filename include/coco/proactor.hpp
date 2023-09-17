@@ -26,7 +26,11 @@ public:
   Proactor() = default;
   ~Proactor() = default;
 
-  auto attachExecutor(Executor* executor) noexcept -> void { mExecutor = executor; }
+  auto attachExecutor(Executor* executor, std::uint32_t tid) noexcept -> void
+  {
+    mExecutor = executor;
+    mTid = tid;
+  }
   auto getExecutor() const noexcept -> Executor* { return mExecutor; }
   auto execute(WorkerJobQueue&& queue, ExeOpt opt = ExeOpt::Balance) noexcept -> void
   {
@@ -258,5 +262,6 @@ private:
   std::mutex mCancelMt;
   std::vector<CancelItem> mCancels;
   std::atomic_bool mNotifyBlocked{false};
+  std::uint32_t mTid = -1;
 };
 } // namespace coco

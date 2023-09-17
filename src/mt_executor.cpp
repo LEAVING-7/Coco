@@ -107,7 +107,7 @@ MtExecutor::MtExecutor(std::size_t threadCount) : mThreadCount(threadCount)
     for (int i = 0; i < threadCount; i++) {
       mThreads.emplace_back([this, i, &finishLatch] {
         mWorkers[i]->start(finishLatch);
-        Proactor::get().attachExecutor(this);
+        Proactor::get().attachExecutor(this, i);
         mWorkers[i]->loop();
       });
     }
@@ -135,9 +135,9 @@ auto MtExecutor::join() noexcept -> void
 
 auto MtExecutor::execute(WorkerJob* job, ExeOpt opt) noexcept -> void
 {
-  if (opt == ExeOpt::Balance) {
+  if (opt.mOpt == ExeOpt::Balance) {
     balanceEnqueue(job, true);
-  } else if (opt == ExeOpt::PreferInOne) {
+  } else if (opt.mOpt == ExeOpt::PreferInOne) {
     balanceEnqueue(job, false);
   }
 }
