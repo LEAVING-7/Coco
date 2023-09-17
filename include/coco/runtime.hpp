@@ -47,7 +47,7 @@ public:
     {
       mTask.promise().setNextJob(&emptyJob);
       mDone = &mTask.promise().getNextJob();
-      Proactor::get().execute(mTask.promise().getThisJob());
+      Proactor::get().execute(mTask.promise().getThisJob(), ExeOpt::balance());
     }
     JoinHandle(JoinHandle&& other) noexcept
         : mDone(std::exchange(other.mDone, nullptr)), mTask(std::move(other.mTask)){};
@@ -200,7 +200,7 @@ public:
   auto spawnDetach(Task<> task) -> void
   {
     task.promise().setNextJob(&detachJob);
-    mExecutor.get()->execute(task.promise().getThisJob(), ExeOpt::PreferInOne);
+    mExecutor.get()->execute(task.promise().getThisJob(), ExeOpt::create(0, ExeOpt::PreferInOne, ExeOpt::Low));
     [[maybe_unused]] auto dummy = task.take();
   }
 

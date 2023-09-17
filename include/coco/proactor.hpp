@@ -32,17 +32,17 @@ public:
     mTid = tid;
   }
   auto getExecutor() const noexcept -> Executor* { return mExecutor; }
-  auto execute(WorkerJobQueue&& queue, ExeOpt opt = ExeOpt::Balance) noexcept -> void
+  auto execute(WorkerJobQueue&& queue, ExeOpt opt) noexcept -> void
   {
     mExecutor->execute(std::move(queue), 0, opt);
     notify();
   }
-  auto execute(WorkerJobQueue&& queue, std::size_t count, ExeOpt opt = ExeOpt::Balance) noexcept -> void
+  auto execute(WorkerJobQueue&& queue, std::size_t count, ExeOpt opt) noexcept -> void
   {
     mExecutor->execute(std::move(queue), count, opt);
     notify();
   }
-  auto execute(WorkerJob* job, ExeOpt opt = ExeOpt::Balance) noexcept -> void
+  auto execute(WorkerJob* job, ExeOpt opt) noexcept -> void
   {
     mExecutor->execute(job, opt);
     notify();

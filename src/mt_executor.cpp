@@ -57,38 +57,56 @@ auto Worker::processTasks() -> void
     runJob(job, nullptr);
   }
 }
-auto Worker::pushTask(WorkerJob* job) -> void
+
+auto Worker::pushTask(WorkerJob* job, ExeOpt opt) -> void
 {
   mQueueMt.lock();
-  mTaskQueue.pushBack(job);
+  if (opt.mPri == ExeOpt::High) {
+    mTaskQueue.pushFront(job);
+  } else {
+    mTaskQueue.pushBack(job);
+  }
   mQueueMt.unlock();
   notify();
 }
-auto Worker::tryPushTask(WorkerJob* job) -> bool
+
+auto Worker::tryPushTask(WorkerJob* job, ExeOpt opt) -> bool
 {
   std::unique_lock lk(mQueueMt, std::try_to_lock);
   if (!lk.owns_lock()) {
     return false;
   };
-  mTaskQueue.pushBack(job);
+  if (opt.mPri == ExeOpt::High) {
+    mTaskQueue.pushFront(job);
+  } else {
+    mTaskQueue.pushBack(job);
+  }
   notify();
   return true;
 }
-auto Worker::pushTask(WorkerJobQueue&& jobs) -> void
+auto Worker::pushTask(WorkerJobQueue&& jobs, ExeOpt opt) -> void
 {
   assert(jobs.back() == nullptr);
   mQueueMt.lock();
-  mTaskQueue.append(std::move(jobs));
+  if (opt.mPri == ExeOpt::High) {
+    mTaskQueue.prepend(std::move(jobs));
+  } else {
+    mTaskQueue.append(std::move(jobs));
+  }
   mQueueMt.unlock();
   notify();
 }
-auto Worker::tryPushTask(WorkerJobQueue&& jobs) -> bool
+auto Worker::tryPushTask(WorkerJobQueue&& jobs, ExeOpt opt) -> bool
 {
   std::unique_lock lk(mQueueMt, std::try_to_lock);
   if (!lk.owns_lock()) {
     return false;
   }
-  mTaskQueue.append(std::move(jobs));
+  if (opt.mPri == ExeOpt::High) {
+    mTaskQueue.prepend(std::move(jobs));
+  } else {
+    mTaskQueue.append(std::move(jobs));
+  }
   notify();
   return true;
 }
@@ -133,23 +151,16 @@ auto MtExecutor::join() noexcept -> void
   }
 }
 
-auto MtExecutor::execute(WorkerJob* job, ExeOpt opt) noexcept -> void
-{
-  if (opt.mOpt == ExeOpt::Balance) {
-    balanceEnqueue(job, true);
-  } else if (opt.mOpt == ExeOpt::PreferInOne) {
-    balanceEnqueue(job, false);
-  }
-}
+auto MtExecutor::execute(WorkerJob* job, ExeOpt opt) noexcept -> void { balanceEnqueue(job, opt); }
 auto MtExecutor::execute(WorkerJobQueue&& queue, std::size_t count, ExeOpt opt) noexcept -> void
 {
   if (count == 0) {
-    balanceEnqueue(std::move(queue), true);
+    balanceEnqueue(std::move(queue), opt);
   } else {
     while (!queue.empty()) {
       auto const perThread = count / mThreadCount;
       auto perThreadJobs = queue.popFront(perThread);
-      balanceEnqueue(std::move(perThreadJobs), true);
+      balanceEnqueue(std::move(perThreadJobs), opt);
     }
   }
 }
@@ -158,7 +169,7 @@ auto MtExecutor::runMain(Task<> task) -> void
   auto& promise = task.promise();
   auto taskState = std::atomic<JobState>(JobState::Ready);
   promise.setState(&taskState);
-  this->execute(promise.getThisJob());
+  this->execute(promise.getThisJob(), ExeOpt{.mOpt = ExeOpt::ForceInOne, .mPri = ExeOpt::High});
   while (taskState.load() != JobState::Final) {
     taskState.wait(JobState::Ready);
   }

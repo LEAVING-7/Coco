@@ -41,7 +41,7 @@ struct PromiseBase {
         }
         promise.mThisHandle.destroy();
       } else if (next != &emptyJob) {
-        Proactor::get().execute(next);
+        Proactor::get().execute(next, ExeOpt::prefInOne());
       }
     }
     auto await_resume() noexcept -> void {}
@@ -160,7 +160,7 @@ public:
     {
       mHandle.promise().setNextJob(handle.promise().getThisJob());
       mHandle.promise().setState(handle.promise().getState());
-      Proactor::get().execute(mHandle.promise().getThisJob());
+      Proactor::get().execute(mHandle.promise().getThisJob(), ExeOpt::prefInOne());
     }
     coroutine_handle_type mHandle;
   };

@@ -17,15 +17,17 @@ static auto convertTime(std::chrono::duration<Rep, Ratio> duration, ::timeval& o
 }
 
 struct [[nodiscard]] IoJob : WorkerJob {
-  IoJob(PromiseBase* pending) : WorkerJob(&IoJob::run, nullptr), mPending(pending){};
+  IoJob(PromiseBase* pending) : IoJob(pending, {}){};
+  IoJob(PromiseBase* pending, ExeOpt opt) : WorkerJob(&IoJob::run, nullptr), mPending(pending), mOpt(opt) {}
   static auto run(WorkerJob* job, void* args) noexcept -> void
   {
-    auto ioJob = static_cast<IoJob*>(job);
+    auto self = static_cast<IoJob*>(job);
     auto res = static_cast<int*>(args);
-    ioJob->mResult = *res;
-    Proactor::get().execute(ioJob->mPending->getThisJob());
+    self->mResult = *res;
+    Proactor::get().execute(self->mPending->getThisJob(), self->mOpt);
   }
   int mResult;
+  ExeOpt mOpt;
   PromiseBase* mPending;
 };
 
@@ -205,6 +207,11 @@ struct [[nodiscard]] AcceptAwaiter : SocketAwaiter {
   {
     auto job = &handle.promise();
     mIoJob.mPending = job;
+    mIoJob.mOpt = ExeOpt{
+        .mTid = 0,
+        .mOpt = ExeOpt::Balance,
+        .mPri = ExeOpt::High,
+    };
     Proactor::get().prepAccept(&mIoJob, mFd, nullptr, nullptr);
   }
 

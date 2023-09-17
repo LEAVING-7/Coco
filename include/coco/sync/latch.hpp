@@ -45,7 +45,7 @@ private:
   {
     auto queue = mWaiting.popAll();
     while (auto task = queue.popFront()) {
-      Proactor::get().execute(task);
+      Proactor::get().execute(task, ExeOpt::balance());
     }
   }
 

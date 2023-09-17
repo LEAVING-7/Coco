@@ -47,15 +47,24 @@ struct Task;
 
 struct ExeOpt {
   std::uint16_t mTid;
-  enum Opt {
+
+  enum Opt : std::uint8_t {
     Balance,
     PreferInOne,
     ForceInOne,
   } mOpt = Balance;
 
-  ExeOpt() = default;
-  ExeOpt(Opt opt) : mOpt(opt) {}
-  ExeOpt(Opt opt, std::uint16_t tid) : mTid(tid), mOpt(opt) {}
+  enum Pri : std::uint8_t {
+    Low,
+    High,
+  } mPri = Low;
+
+  constexpr static auto create(std::uint16_t tid, Opt opt, Pri pri) noexcept -> ExeOpt
+  {
+    return {.mTid = tid, .mOpt = opt, .mPri = pri};
+  }
+  constexpr static auto prefInOne() noexcept -> ExeOpt { return {.mTid = 0, .mOpt = PreferInOne, .mPri = Low}; }
+  constexpr static auto balance() noexcept -> ExeOpt { return {.mTid = 0, .mOpt = Balance, .mPri = Low}; }
 };
 
 class Executor {

@@ -110,7 +110,7 @@ public:
     mTail = std::exchange(other.mTail, nullptr);
   }
 
-  auto preappend(Queue other) noexcept -> void
+  auto prepend(Queue other) noexcept -> void
   {
     if (other.empty()) {
       return;
