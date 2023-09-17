@@ -151,9 +151,25 @@ auto MtExecutor::join() noexcept -> void
   }
 }
 
-auto MtExecutor::execute(WorkerJob* job, ExeOpt opt) noexcept -> void { balanceEnqueue(job, opt); }
+auto MtExecutor::execute(WorkerJob* job, ExeOpt opt) noexcept -> void
+{
+  if (opt.mOpt == ExeOpt::PreferInOne) {
+    auto b = mWorkers[opt.mTid]->tryEnqeue(job, opt);
+    if (b) {
+      return;
+    }
+  }
+  balanceEnqueue(job, opt);
+}
 auto MtExecutor::execute(WorkerJobQueue&& queue, std::size_t count, ExeOpt opt) noexcept -> void
 {
+  if (opt.mOpt == ExeOpt::PreferInOne) {
+    auto b = mWorkers[opt.mTid]->tryEnqeue(std::move(queue), opt);
+    if (b) {
+      return;
+    }
+  }
+
   if (count == 0) {
     balanceEnqueue(std::move(queue), opt);
   } else {

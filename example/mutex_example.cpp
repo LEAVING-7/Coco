@@ -1,7 +1,7 @@
 #include <coco/runtime.hpp>
 #include <coco/sync.hpp>
 
-static coco::Runtime rt(coco::MT, 16);
+static coco::Runtime rt(coco::MT, 4);
 
 std::size_t counter = 0;
 

@@ -39,9 +39,6 @@ inline auto emptyFn(WorkerJob*, void*) noexcept -> void { assert(false && "empty
 inline WorkerJob emptyJob{emptyFn, nullptr};
 inline WorkerJob detachJob{emptyFn, nullptr};
 
-inline std::atomic<JobState> multishotAccept{JobState::Ready};
-inline std::atomic<JobState> multishotNofiy{JobState::Ready};
-
 template <typename T = void>
 struct Task;
 
