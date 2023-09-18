@@ -28,8 +28,8 @@ auto main() -> int
       co_return;
     }
 
-    static auto latch = coco::sync::Latch(100'000);
-    for (int i = 0; i < 100'000; i++) {
+    static auto latch = coco::sync::Latch(10000000);
+    for (int i = 0; i < 10000000; i++) {
       auto [stream, errc0] = co_await listener.accept();
 
       if (errc0 != std::errc{0}) {

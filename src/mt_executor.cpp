@@ -76,7 +76,7 @@ auto Worker::tryPushTask(WorkerJob* job, ExeOpt opt) -> bool
   if (!lk.owns_lock()) {
     return false;
   };
-  if (opt.mPri == ExeOpt::High) {
+  if (opt.mPri == ExeOpt::High) [[unlikely]] {
     mTaskQueue.pushFront(job);
   } else {
     mTaskQueue.pushBack(job);
@@ -88,7 +88,7 @@ auto Worker::pushTask(WorkerJobQueue&& jobs, ExeOpt opt) -> void
 {
   assert(jobs.back() == nullptr);
   mQueueMt.lock();
-  if (opt.mPri == ExeOpt::High) {
+  if (opt.mPri == ExeOpt::High) [[unlikely]] {
     mTaskQueue.prepend(std::move(jobs));
   } else {
     mTaskQueue.append(std::move(jobs));
@@ -102,7 +102,7 @@ auto Worker::tryPushTask(WorkerJobQueue&& jobs, ExeOpt opt) -> bool
   if (!lk.owns_lock()) {
     return false;
   }
-  if (opt.mPri == ExeOpt::High) {
+  if (opt.mPri == ExeOpt::High) [[unlikely]] {
     mTaskQueue.prepend(std::move(jobs));
   } else {
     mTaskQueue.append(std::move(jobs));
