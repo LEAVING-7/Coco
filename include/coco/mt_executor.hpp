@@ -23,19 +23,19 @@ public:
   auto operator=(Worker&&) -> Worker& = delete;
 
   template <typename T>
-  [[nodiscard]] auto enqueue(T&& task, ExeOpt opt) noexcept -> bool
+  [[nodiscard]] auto enqueue(T task, ExeOpt opt) noexcept -> bool
   {
     auto state = mState.load(std::memory_order_relaxed);
     if (state == State::Stop) [[unlikely]] {
       return false;
     } else {
-      pushTask(std::move<T>(task), opt);
+      pushTask(std::move(task), opt);
       return true;
     }
   }
 
   template <typename T>
-  [[nodiscard]] auto tryEnqeue(T&& task, ExeOpt opt) noexcept -> bool
+  [[nodiscard]] auto tryEnqeue(T task, ExeOpt opt) noexcept -> bool
   {
     auto state = mState.load(std::memory_order_relaxed);
     if (state == State::Stop) [[unlikely]] {
@@ -56,8 +56,8 @@ private:
   auto pushTask(WorkerJob* job, ExeOpt opt) -> void;
   auto tryPushTask(WorkerJob* job, ExeOpt opt) -> bool;
 
-  auto pushTask(WorkerJobQueue&& jobs, ExeOpt opt) -> void;
-  auto tryPushTask(WorkerJobQueue&& jobs, ExeOpt opt) -> bool;
+  auto pushTask(WorkerJobQueue jobs, ExeOpt opt) -> void;
+  auto tryPushTask(WorkerJobQueue jobs, ExeOpt opt) -> bool;
 
 private:
   enum class State {
@@ -92,15 +92,15 @@ private:
     requires std::is_same_v<WorkerJobQueue, T> || std::is_base_of_v<WorkerJob, std::remove_pointer_t<T>>
   {
     auto nextIdx = opt.mOpt == ExeOpt::Balance ? mNextWorker.fetch_add(1, std::memory_order_relaxed)
-                                                 : mNextWorker.load(std::memory_order_relaxed);
+                                               : mNextWorker.load(std::memory_order_relaxed);
     auto startIdx = nextIdx % mThreadCount;
     for (std::uint32_t i = 0; i < mThreadCount; i++) {
       auto const idx = (startIdx + i) < mThreadCount ? (startIdx + i) : (startIdx + i - mThreadCount);
-      if (mWorkers[idx]->tryEnqeue(task, opt)) {
+      if (mWorkers[idx]->tryEnqeue(std::move(task), opt)) {
         return;
       }
     }
-    auto r = mWorkers[startIdx]->enqueue(task, opt);
+    auto r = mWorkers[startIdx]->enqueue(std::move(task), opt);
     assert(r);
   }
 

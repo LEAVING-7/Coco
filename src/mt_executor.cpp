@@ -84,7 +84,7 @@ auto Worker::tryPushTask(WorkerJob* job, ExeOpt opt) -> bool
   notify();
   return true;
 }
-auto Worker::pushTask(WorkerJobQueue&& jobs, ExeOpt opt) -> void
+auto Worker::pushTask(WorkerJobQueue jobs, ExeOpt opt) -> void
 {
   assert(jobs.back() == nullptr);
   mQueueMt.lock();
@@ -96,7 +96,7 @@ auto Worker::pushTask(WorkerJobQueue&& jobs, ExeOpt opt) -> void
   mQueueMt.unlock();
   notify();
 }
-auto Worker::tryPushTask(WorkerJobQueue&& jobs, ExeOpt opt) -> bool
+auto Worker::tryPushTask(WorkerJobQueue jobs, ExeOpt opt) -> bool
 {
   std::unique_lock lk(mQueueMt, std::try_to_lock);
   if (!lk.owns_lock()) {
