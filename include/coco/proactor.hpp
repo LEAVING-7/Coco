@@ -143,11 +143,11 @@ public:
     while (auto job = jobs.popFront()) {
       runJob(job, nullptr);
     }
-    auto future = mTimerManager.nextInstant();
-    auto duration = future - std::chrono::steady_clock::now();
     if (mNotifyBlocked) {
       submit();
     } else {
+      auto future = mTimerManager.nextInstant();
+      auto duration = future - std::chrono::steady_clock::now();
       submitWait(duration);
     }
     return;
@@ -210,13 +210,15 @@ private:
   auto processCancel() -> void
   {
     std::lock_guard<std::mutex> lock(mCancelMt);
-    while (!mCancels.empty()) {
-      auto cancel = mCancels.back();
-      mCancels.pop_back();
-      doCancel(cancel);
+    if (mCancels.empty()) [[unlikely]] {
+      while (!mCancels.empty()) {
+        auto cancel = mCancels.back();
+        mCancels.pop_back();
+        doCancel(cancel);
+      }
+      auto r = mUring.submit();
+      assert(r == std::errc(0));
     }
-    auto r = mUring.submit();
-    assert(r == std::errc(0));
   }
 
   auto addPendingSet(WorkerJob* job) -> void

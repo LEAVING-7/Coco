@@ -36,7 +36,7 @@ if(COCO_BUILD_EXAMPLE)
   set_target_properties(block_on_example PROPERTIES CXX_STANDARD 20)
 
   add_executable(simple_server simple_server.cpp)
-  target_link_libraries(simple_server Coco)
+  target_link_libraries(simple_server Coco jemalloc)
   set_target_properties(simple_server PROPERTIES CXX_STANDARD 20)
 
   # add a target run all example
