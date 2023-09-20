@@ -50,8 +50,13 @@ auto main() -> int
           }
         }
 
-        const auto http200 = "HTTP/1.1 200 OK\r\nContent-Length: 12\r\nConnection: close\r\n\r\nHello World\n"sv;
-        auto [n2, err3] = co_await stream.send(std::as_bytes(std::span(http200)));
+        std::string str;
+        str.reserve(65600);
+        const auto http200 = "HTTP/1.1 200 OK\r\nContent-Length: 65536\r\nConnection: close\r\n\r\n"sv;
+        str.append(http200);
+        str.append(65536, 'a');
+        str.append("\n");
+        auto [n2, err3] = co_await stream.send(std::as_bytes(std::span(str)));
         if (errc2 != std::errc(0)) {
           print("recv error", errc2);
           co_return;
