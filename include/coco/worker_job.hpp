@@ -53,8 +53,8 @@ inline auto runJob(WorkerJob* job, WorkerArg args) noexcept -> void
 }
 
 inline auto emptyFn(WorkerJob*, WorkerArg) noexcept -> void { assert(false && "empty job should not be executed"); }
-inline WorkerJob emptyJob{emptyFn, nullptr};
-inline WorkerJob detachJob{emptyFn, nullptr};
+inline WorkerJob kEmptyJob{emptyFn, nullptr};
+inline WorkerJob kDetachJob{emptyFn, nullptr};
 
 template <typename T = void>
 struct Task;

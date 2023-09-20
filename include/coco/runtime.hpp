@@ -29,7 +29,7 @@ public:
     auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> bool
     {
       auto job = handle.promise().getThisJob();
-      WorkerJob* expected = &emptyJob;
+      WorkerJob* expected = &kEmptyJob;
       if (mDone->compare_exchange_strong(expected, job)) {
         return true;
       } else {
@@ -45,7 +45,7 @@ public:
     JoinHandle() noexcept = default;
     JoinHandle(TaskTy&& task) noexcept : mTask(std::forward<TaskTy>(task))
     {
-      mTask.promise().setNextJob(&emptyJob);
+      mTask.promise().setNextJob(&kEmptyJob);
       mDone = &mTask.promise().getNextJob();
       Proactor::get().execute(mTask.promise().getThisJob(), ExeOpt::balance());
     }
@@ -54,7 +54,7 @@ public:
     auto operator=(JoinHandle&& other) noexcept -> JoinHandle& = default;
     ~JoinHandle() noexcept
     {
-      if (mDone != nullptr && mTask.handle() != nullptr && mDone->load() == &emptyJob) {
+      if (mDone != nullptr && mTask.handle() != nullptr && mDone->load() == &kEmptyJob) {
         assert(false && "looks like you forget to call join()");
       }
     }
@@ -199,7 +199,7 @@ public:
 
   auto spawnDetach(Task<> task) -> void
   {
-    task.promise().setNextJob(&detachJob);
+    task.promise().setNextJob(&kDetachJob);
     mExecutor.get()->execute(task.promise().getThisJob(), ExeOpt::prefInOne());
     [[maybe_unused]] auto dummy = task.take();
   }

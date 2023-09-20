@@ -34,13 +34,13 @@ struct PromiseBase {
           promise.getState()->store(JobState::Final, std::memory_order_release);
           promise.getState()->notify_one();
         }
-      } else if (next == &detachJob) {
+      } else if (next == &kDetachJob) {
         if (promise.getState() != nullptr) [[unlikely]] {
           promise.getState()->store(JobState::Final, std::memory_order_release);
           promise.getState()->notify_one();
         }
         promise.mThisHandle.destroy();
-      } else if (next != &emptyJob) {
+      } else if (next != &kEmptyJob) {
         Proactor::get().execute(next, ExeOpt::prefInOne());
       }
     }
