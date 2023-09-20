@@ -44,7 +44,7 @@ auto InlExecutor::loop() -> void
 auto InlExecutor::processTasks() -> void
 {
   while (auto job = mTaskQueue.popFront()) {
-    runJob(job, nullptr);
+    runJob(job, kWorkerArgNull);
   }
   if (mMainTaskState.load() == JobState::Final) {
     mState = State::Stop;

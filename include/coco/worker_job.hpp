@@ -18,8 +18,25 @@ enum class JobState : std::uint16_t {
   Final,
 };
 
+struct WorkerArg {
+  union {
+    void* ptr;
+    std::uint8_t u8;
+    std::uint16_t u16;
+    std::uint32_t u32;
+    std::uint64_t u64;
+    std::int8_t i8;
+    std::int16_t i16;
+    std::int32_t i32;
+    std::int64_t i64;
+    float f32;
+    double f64;
+  };
+};
+constexpr WorkerArg kWorkerArgNull{.ptr = nullptr};
+
 struct WorkerJob {
-  using WorkerFn = void (*)(WorkerJob* task, void* args) noexcept;
+  using WorkerFn = void (*)(WorkerJob* task, WorkerArg args) noexcept;
   WorkerJob(WorkerFn fn, std::atomic<JobState>* state) noexcept : run(fn), next(nullptr), state(state) {}
 
   WorkerFn run;
@@ -29,13 +46,13 @@ struct WorkerJob {
 
 using WorkerJobQueue = util::Queue<&WorkerJob::next>;
 
-inline auto runJob(WorkerJob* job, void* args) noexcept -> void
+inline auto runJob(WorkerJob* job, WorkerArg args) noexcept -> void
 {
   assert(job != nullptr && "job should not be nullptr");
   job->run(job, args);
 }
 
-inline auto emptyFn(WorkerJob*, void*) noexcept -> void { assert(false && "empty job should not be executed"); }
+inline auto emptyFn(WorkerJob*, WorkerArg) noexcept -> void { assert(false && "empty job should not be executed"); }
 inline WorkerJob emptyJob{emptyFn, nullptr};
 inline WorkerJob detachJob{emptyFn, nullptr};
 

@@ -19,11 +19,11 @@ static auto convertTime(std::chrono::duration<Rep, Ratio> duration, ::timeval& o
 struct [[nodiscard]] IoJob : WorkerJob {
   IoJob(PromiseBase* pending) : IoJob(pending, {}){};
   IoJob(PromiseBase* pending, ExeOpt opt) : WorkerJob(&IoJob::run, nullptr), mPending(pending), mOpt(opt) {}
-  static auto run(WorkerJob* job, void* args) noexcept -> void
+  static auto run(WorkerJob* job, WorkerArg args) noexcept -> void
   {
     auto self = static_cast<IoJob*>(job);
-    auto res = static_cast<int*>(args);
-    self->mResult = *res;
+    auto res = args.i32;
+    self->mResult = res;
     Proactor::get().execute(self->mPending->getThisJob(), self->mOpt);
   }
   int mResult;

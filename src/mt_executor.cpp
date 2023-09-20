@@ -54,7 +54,7 @@ auto Worker::processTasks() -> void
   auto jobs = std::move(mTaskQueue);
   mQueueMt.unlock();
   while (auto job = jobs.popFront()) {
-    runJob(job, nullptr);
+    runJob(job, kWorkerArgNull);
   }
 }
 

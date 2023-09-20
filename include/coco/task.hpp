@@ -12,7 +12,7 @@ namespace coco {
 struct PromiseBase {
   struct CoroJob : WorkerJob {
     CoroJob(PromiseBase* promise, WorkerJob::WorkerFn run) noexcept : promise(promise), WorkerJob(run, nullptr) {}
-    static auto run(WorkerJob* job, void* args) noexcept -> void
+    static auto run(WorkerJob* job, WorkerArg) noexcept -> void
     {
       auto coroJob = static_cast<CoroJob*>(job);
       coroJob->promise->mThisHandle.resume();

@@ -148,7 +148,7 @@ public:
     {
     }
 
-    static auto run(WorkerJob* job, void* /* arg */) noexcept -> void
+    static auto run(WorkerJob* job, WorkerArg /* arg */) noexcept -> void
     {
       auto self = static_cast<BlockOnJob*>(job);
       try {

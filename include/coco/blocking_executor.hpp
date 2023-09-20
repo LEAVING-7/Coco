@@ -31,7 +31,7 @@ private:
         growPool();
         auto task = mQueue.popFront();
         lk.unlock();
-        task->run(task, 0);
+        task->run(task, kWorkerArgNull);
         lk.lock();
       }
       mIdleCount += 1;

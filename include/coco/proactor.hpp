@@ -141,7 +141,7 @@ public:
     processCancel();
     auto [jobs, count] = mTimerManager.processTimers();
     while (auto job = jobs.popFront()) {
-      runJob(job, nullptr);
+      runJob(job, {.ptr = nullptr});
     }
     if (mNotifyBlocked) {
       submit();
@@ -233,7 +233,7 @@ private:
     if (cqe->user_data == 0) {
       mNotifyBlocked.store(false);
     } else {
-      runJob((WorkerJob*)cqe->user_data, &cqe->res);
+      runJob((WorkerJob*)cqe->user_data, {.i32 = cqe->res});
     }
   }
 
@@ -247,7 +247,7 @@ private:
         n = mPendingJobs.erase(job);
       }
       if (n == 1) {
-        runJob(job, &cqe->res);
+        runJob(job, {.i32 = cqe->res});
       }
     }
   }
