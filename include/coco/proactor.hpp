@@ -3,6 +3,7 @@
 #include "coco/defer.hpp"
 #include "coco/timer.hpp"
 #include "coco/uring.hpp"
+#include "coco/util/fixed_vec.hpp"
 #include "coco/worker_job.hpp"
 
 namespace coco {
@@ -180,8 +181,9 @@ private:
       if (cqe->flags & IORING_CQE_F_MORE) {
         processMore(cqe);
       } else {
-        doIoJob(cqe);
+        addIoJob(cqe);
       }
+      processIoTasks();
       mUring.seen(cqe);
     }
   }
@@ -200,11 +202,20 @@ private:
       if (cqe->flags & IORING_CQE_F_MORE) {
         processMore(cqe);
       } else {
-        doIoJob(cqe);
+        addIoJob(cqe);
       }
       count++;
     }
+    processIoTasks();
     mUring.advance(count);
+  }
+
+  auto processIoTasks() -> void
+  {
+    for (IoTask const& task : mTaskBuffer) {
+      runJob(task.job, {.i32 = task.res});
+    }
+    mTaskBuffer.clear();
   }
 
   auto processCancel() -> void
@@ -237,7 +248,7 @@ private:
     }
   }
 
-  auto doIoJob(::io_uring_cqe* cqe) noexcept -> void
+  auto addIoJob(::io_uring_cqe* cqe) noexcept -> void
   {
     auto job = (WorkerJob*)cqe->user_data;
     if (job != nullptr) {
@@ -247,7 +258,10 @@ private:
         n = mPendingJobs.erase(job);
       }
       if (n == 1) {
-        runJob(job, {.i32 = cqe->res});
+        auto r = mTaskBuffer.push_back({job, cqe->res});
+        if (r == false) {
+          runJob(job, {.i32 = cqe->res});
+        }
       }
     }
   }
@@ -264,9 +278,16 @@ private:
     }
   }
 
+  struct IoTask {
+    WorkerJob* job;
+    int res;
+  };
+  util::FixedVec<IoTask, 36> mTaskBuffer;
+
   Executor* mExecutor;
   TimerManager mTimerManager{64};
   IoUring mUring{};
+
   std::mutex mPendingSet;
   std::unordered_set<WorkerJob*> mPendingJobs;
 
