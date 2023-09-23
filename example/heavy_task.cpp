@@ -1,13 +1,18 @@
 #include <coco/runtime.hpp>
 #include <coco/sync.hpp>
+#include <random>
 
 // TODO: not efficient in this case
 static auto rt = coco::Runtime(coco::MT, 16);
 constexpr auto kTaskCount = 100'000'000;
 
+static auto gRandomGen = std::mt19937(std::random_device{}());
+static auto gIterRange = std::uniform_int_distribution(0, 100);
+
 auto heavy_task(coco::sync::Latch& latch) -> coco::Task<>
 {
-  for (int i = 0; i < 100; i++) {
+  auto iter = gIterRange(gRandomGen);
+  for (int i = 0; i < iter; i++) {
     // do some calculation
     std::this_thread::yield();
   }
