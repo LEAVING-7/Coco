@@ -35,7 +35,7 @@ public:
   auto getExecutor() const noexcept -> Executor* { return mExecutor; }
   auto execute(WorkerJobQueue&& queue, ExeOpt opt) noexcept -> void
   {
-    if (opt.mOpt == ExeOpt::PreferInOne) {
+    if (opt.mOpt == ExeOpt::PreferInOne) [[unlikely]] {
       opt.mTid = mTid;
     }
     mExecutor->execute(std::move(queue), 0, opt);
@@ -43,7 +43,7 @@ public:
   }
   auto execute(WorkerJobQueue&& queue, std::size_t count, ExeOpt opt) noexcept -> void
   {
-    if (opt.mOpt == ExeOpt::PreferInOne) {
+    if (opt.mOpt == ExeOpt::PreferInOne) [[unlikely]] {
       opt.mTid = mTid;
     }
     mExecutor->execute(std::move(queue), count, opt);
@@ -51,7 +51,7 @@ public:
   }
   auto execute(WorkerJob* job, ExeOpt opt) noexcept -> void
   {
-    if (opt.mOpt == ExeOpt::PreferInOne) {
+    if (opt.mOpt == ExeOpt::PreferInOne) [[unlikely]] {
       opt.mTid = mTid;
     }
     mExecutor->execute(job, opt);
