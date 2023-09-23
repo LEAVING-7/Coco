@@ -34,13 +34,13 @@ struct PromiseBase {
           promise.getState()->store(JobState::Final, std::memory_order_release);
           promise.getState()->notify_one();
         }
-      } else if (next == &kDetachJob) {
+      } else if (next == &detail::kDetachJob) {
         if (promise.getState() != nullptr) [[unlikely]] {
           promise.getState()->store(JobState::Final, std::memory_order_release);
           promise.getState()->notify_one();
         }
         promise.mThisHandle.destroy();
-      } else if (next != &kEmptyJob) {
+      } else if (next != &detail::kEmptyJob) {
         Proactor::get().execute(next, ExeOpt::prefInOne());
       }
     }
@@ -56,6 +56,11 @@ struct PromiseBase {
 
   auto getState() noexcept -> std::atomic<JobState>* { return mThisJob.state; }
   auto setState(std::atomic<JobState>* state) noexcept -> void { mThisJob.state = state; }
+  auto setDetach() noexcept -> void
+  {
+    auto ptr = &detail::kDetachJob;
+    mNextJob.store(ptr);
+  }
 
   auto setNextJob(WorkerJob* next) noexcept -> void { mNextJob = next; }
   auto getNextJob() noexcept -> std::atomic<WorkerJob*>& { return mNextJob; }

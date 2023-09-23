@@ -36,8 +36,16 @@ if(COCO_BUILD_EXAMPLE)
   set_target_properties(block_on_example PROPERTIES CXX_STANDARD 20)
 
   add_executable(simple_server simple_server.cpp)
-  target_link_libraries(simple_server Coco jemalloc)
+  target_link_libraries(simple_server Coco)
   set_target_properties(simple_server PROPERTIES CXX_STANDARD 20)
+
+  add_executable(heavy_task heavy_task.cpp)
+  target_link_libraries(heavy_task Coco)
+  set_target_properties(heavy_task PROPERTIES CXX_STANDARD 20)
+
+  add_executable(chain_example chain_example.cpp)
+  target_link_libraries(chain_example Coco)
+  set_target_properties(chain_example PROPERTIES CXX_STANDARD 20)
 
   # add a target run all example
   add_custom_target(run_example

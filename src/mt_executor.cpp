@@ -61,7 +61,7 @@ auto Worker::processTasks() -> void
 auto Worker::pushTask(WorkerJob* job, ExeOpt opt) -> void
 {
   mQueueMt.lock();
-  if (opt.mPri == ExeOpt::High) {
+  if (opt.mPri == ExeOpt::High) [[unlikely]] {
     mTaskQueue.pushFront(job);
   } else {
     mTaskQueue.pushBack(job);

@@ -3,6 +3,7 @@
 #include "coco/blocking_executor.hpp"
 #include "coco/inl_executor.hpp"
 #include "coco/mt_executor.hpp"
+#include "coco/sync/chain.hpp"
 
 namespace coco {
 enum class RuntimeKind {
@@ -29,7 +30,7 @@ public:
     auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> bool
     {
       auto job = handle.promise().getThisJob();
-      WorkerJob* expected = &kEmptyJob;
+      WorkerJob* expected = &detail::kEmptyJob;
       if (mDone->compare_exchange_strong(expected, job)) {
         return true;
       } else {
@@ -45,7 +46,7 @@ public:
     JoinHandle() noexcept = default;
     JoinHandle(TaskTy&& task) noexcept : mTask(std::forward<TaskTy>(task))
     {
-      mTask.promise().setNextJob(&kEmptyJob);
+      mTask.promise().setNextJob(&detail::kEmptyJob);
       mDone = &mTask.promise().getNextJob();
       Proactor::get().execute(mTask.promise().getThisJob(), ExeOpt::balance());
     }
@@ -54,7 +55,7 @@ public:
     auto operator=(JoinHandle&& other) noexcept -> JoinHandle& = default;
     ~JoinHandle() noexcept
     {
-      if (mDone != nullptr && mTask.handle() != nullptr && mDone->load() == &kEmptyJob) {
+      if (mDone != nullptr && mTask.handle() != nullptr && mDone->load() == &detail::kEmptyJob) {
         assert(false && "looks like you forget to call join()");
       }
     }
@@ -199,12 +200,34 @@ public:
 
   auto spawnDetach(Task<> task) -> void
   {
-    task.promise().setNextJob(&kDetachJob);
-    mExecutor.get()->execute(task.promise().getThisJob(), ExeOpt::prefInOne());
+    task.promise().setDetach();
+    mExecutor.get()->execute(task.promise().getThisJob(), ExeOpt::balance());
     [[maybe_unused]] auto dummy = task.take();
   }
 
+  struct [[nodiscard]] waitChainAwaiter {
+    waitChainAwaiter(Runtime& runtime, sync::Chain&& chain) noexcept : mRuntime(runtime), mChain(std::move(chain)) {}
+
+    auto await_ready() const noexcept -> bool { return false; }
+    template <typename Promise>
+    auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
+    {
+      mChain.chain(handle.promise().getThisJob());
+      mRuntime.execute(mChain.takeQueue(), ExeOpt::balance());
+    }
+    auto await_resume() const noexcept -> void {}
+    Runtime& mRuntime;
+    sync::Chain mChain;
+  };
+
+  auto wait(sync::Chain&& chain) -> decltype(auto) { return waitChainAwaiter(*this, std::move(chain)); }
+
 private:
+  auto execute(WorkerJob* job, ExeOpt opt) noexcept -> void { mExecutor.get()->execute(job, opt); }
+  auto execute(WorkerJobQueue queue, ExeOpt opt) noexcept -> void
+  {
+    mExecutor.get()->execute(std::move(queue), 0, opt);
+  }
   std::shared_ptr<Executor> mExecutor;
   std::shared_ptr<BlockingExecutor> mBlocking;
   std::once_flag mBlockingOnceFlag;

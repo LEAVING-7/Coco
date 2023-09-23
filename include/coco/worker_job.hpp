@@ -37,7 +37,7 @@ constexpr WorkerArg kWorkerArgNull{.ptr = nullptr};
 
 struct WorkerJob {
   using WorkerFn = void (*)(WorkerJob* task, WorkerArg args) noexcept;
-  WorkerJob(WorkerFn fn, std::atomic<JobState>* state) noexcept : run(fn), next(nullptr), state(state) {}
+  constexpr WorkerJob(WorkerFn fn, std::atomic<JobState>* state) noexcept : run(fn), next(nullptr), state(state) {}
 
   WorkerFn run;
   WorkerJob* next;
@@ -53,9 +53,10 @@ inline auto runJob(WorkerJob* job, WorkerArg args) noexcept -> void
 }
 
 inline auto emptyFn(WorkerJob*, WorkerArg) noexcept -> void { assert(false && "empty job should not be executed"); }
+namespace detail {
 inline WorkerJob kEmptyJob{emptyFn, nullptr};
 inline WorkerJob kDetachJob{emptyFn, nullptr};
-
+} // namespace detail
 template <typename T = void>
 struct Task;
 
