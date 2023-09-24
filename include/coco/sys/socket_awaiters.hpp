@@ -24,7 +24,8 @@ struct [[nodiscard]] IoJob : WorkerJob {
     auto self = static_cast<IoJob*>(job);
     auto res = args.i32;
     self->mResult = res;
-    Proactor::get().execute(self->mPending->getThisJob(), self->mOpt);
+    auto *selfJob = self->mPending->getThisJob();
+    selfJob->run(selfJob, args);
   }
   int mResult;
   ExeOpt mOpt;
