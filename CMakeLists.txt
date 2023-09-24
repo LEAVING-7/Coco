@@ -54,8 +54,8 @@ target_precompile_headers(Coco
   <format>
 )
 
-option(COCO_BUILD_EXAMPLE "Build example" ON)
-option(COCO_BUILD_TEST "Build test" ON)
+option(COCO_BUILD_EXAMPLE "Build example" OFF)
+option(COCO_BUILD_TEST "Build test" OFF)
 
 add_subdirectory(example)
 add_subdirectory(test)
