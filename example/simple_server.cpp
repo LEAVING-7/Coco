@@ -51,10 +51,10 @@ auto main() -> int
         }
 
         std::string str;
-        str.reserve(65600);
-        const auto http200 = "HTTP/1.1 200 OK\r\nContent-Length: 65536\r\nConnection: close\r\n\r\n"sv;
+        str.reserve(1024 + 128);
+        const auto http200 = "HTTP/1.1 200 OK\r\nContent-Length: 1024\r\nConnection: close\r\n\r\n"sv;
         str.append(http200);
-        str.append(65536, 'a');
+        str.append(1024, 'a');
         str.append("\n");
         auto [n2, err3] = co_await stream.send(std::as_bytes(std::span(str)));
         if (errc2 != std::errc(0)) {

@@ -22,10 +22,13 @@ struct [[nodiscard]] IoJob : WorkerJob {
   static auto run(WorkerJob* job, WorkerArg args) noexcept -> void
   {
     auto self = static_cast<IoJob*>(job);
-    auto res = args.i32;
-    self->mResult = res;
-    auto *selfJob = self->mPending->getThisJob();
-    selfJob->run(selfJob, args);
+    self->mResult = args.i32;
+    auto* selfJob = self->mPending->getThisJob();
+    if (self->mOpt.mPri == ExeOpt::High) [[unlikely]] {
+      Proactor::get().execute(selfJob, self->mOpt);
+    } else {
+      selfJob->run(selfJob, args);
+    }
   }
   int mResult;
   ExeOpt mOpt;
