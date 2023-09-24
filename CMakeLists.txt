@@ -18,9 +18,7 @@ endif()
 include(cmake/add_external.cmake)
 
 # address santitlizer
-option(COCO_BUILD_WITH_ASAN "Build with address sanitizer" ON)
-
-if(COCO_BUILD_WITH_ASAN)
+if(CMAKE_BUILD_TYPE MATCHES Debug)
   message(STATUS "Build with address sanitizer")
   add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
   add_link_options(-fsanitize=address -fno-omit-frame-pointer)
