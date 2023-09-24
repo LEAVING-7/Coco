@@ -57,5 +57,12 @@ target_precompile_headers(Coco
 option(COCO_BUILD_EXAMPLE "Build example" OFF)
 option(COCO_BUILD_TEST "Build test" OFF)
 
-add_subdirectory(example)
-add_subdirectory(test)
+if(COCO_BUILD_EXAMPLE EQUAL ON)
+  message(STATUS "Build Coco example")
+  add_subdirectory(example)
+endif()
+
+if(COCO_BUILD_TEST EQUAL ON)
+  message(STATUS "Build Coco test")
+  add_subdirectory(test)
+endif()
