@@ -221,7 +221,7 @@ private:
   auto processCancel() -> void
   {
     std::lock_guard<std::mutex> lock(mCancelMt);
-    if (mCancels.empty()) [[unlikely]] {
+    if (!mCancels.empty()) [[unlikely]] {
       while (!mCancels.empty()) {
         auto cancel = mCancels.back();
         mCancels.pop_back();
@@ -259,7 +259,7 @@ private:
       }
       if (n == 1) {
         auto r = mTaskBuffer.push_back({job, cqe->res});
-        if (r == false) {
+        if (r == false) { // task buffer full
           runJob(job, {.i32 = cqe->res});
         }
       }
