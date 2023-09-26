@@ -43,6 +43,7 @@ auto main() -> int
 
         if (errc2 != std::errc(0)) {
           print("recv error", errc2);
+          latch.countDown();
           co_return;
         } else {
           if (i % 1000 == 0) {
@@ -59,6 +60,13 @@ auto main() -> int
         auto [n2, err3] = co_await stream.send(std::as_bytes(std::span(str)));
         if (errc2 != std::errc(0)) {
           print("recv error", errc2);
+          latch.countDown();
+          co_return;
+        }
+        auto e = co_await stream.close();
+        if (e != std::errc{0}) {
+          print("close error", e);
+          latch.countDown();
           co_return;
         }
         latch.countDown();

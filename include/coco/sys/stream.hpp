@@ -47,6 +47,7 @@ public:
   {
     return Socket::recv(buf, timeout);
   }
+  auto close() noexcept -> decltype(auto) { return Socket::close(); }
 
 private:
   TcpStream(Socket&& socket) noexcept : Socket(std::move(socket)) {}

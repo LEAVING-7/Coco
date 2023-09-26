@@ -16,7 +16,12 @@ public:
   Socket(int fd) noexcept : Fd(fd) {}
   Socket(Socket&& socket) noexcept = default;
   auto operator=(Socket&& socket) noexcept -> Socket& = default;
-  ~Socket() noexcept { close(); }
+  ~Socket() noexcept
+  {
+    if (mFd != -1) [[unlikely]] {
+      auto r = Fd::close();
+    }
+  }
 
   enum Kind { Stream, Datagram };
   static auto create(SocketAddr const& addr, Kind kind) noexcept -> std::pair<Socket, std::errc>
@@ -104,7 +109,7 @@ public:
     return Proactor::get().prepAcceptMt(job, mFd, nullptr, nullptr, flags);
   }
   auto connect(SocketAddr addr) noexcept -> decltype(auto) { return detail::ConnectAwaiter(mFd, addr); }
-
+  auto close() noexcept -> decltype(auto) { return detail::CloseAwaiter(mFd); }
   auto setopt(int level, int optname, void const* optval, socklen_t optlen) noexcept -> std::errc
   {
     if (::setsockopt(mFd, level, optname, optval, optlen) == -1) {

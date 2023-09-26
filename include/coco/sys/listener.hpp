@@ -16,7 +16,10 @@ public:
       return {TcpListener(), errc};
     }
     int opt = 1;
-    socket.setopt(SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    errc = socket.setopt(SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    if (errc != std::errc{0}) {
+      return {TcpListener(), errc};
+    }
     errc = socket.bind(addr);
     if (errc != std::errc{0}) {
       return {TcpListener(), errc};
@@ -46,10 +49,6 @@ public:
     co_return {TcpStream::from(std::move(socket)), std::errc{0}};
   }
 
-  // auto acceptMulitshot(Task<> task) noexcept -> -
-  // {
-  // }
-
   auto recv(std::span<std::byte> buf) noexcept -> decltype(auto) { return Socket::recv(buf); }
   auto send(std::span<std::byte const> buf) noexcept -> decltype(auto) { return Socket::send(buf); }
   auto sendTimeout(std::span<std::byte const> buf, std::chrono::milliseconds timeout) noexcept -> decltype(auto)
@@ -60,9 +59,9 @@ public:
   {
     return Socket::recv(buf, timeout);
   }
+  auto close() noexcept -> decltype(auto) { return Socket::close(); }
 
 private:
-  bool mShot = false;
   TcpListener(Socket&& socket) noexcept : Socket(std::move(socket)) {}
 };
 } // namespace coco::sys

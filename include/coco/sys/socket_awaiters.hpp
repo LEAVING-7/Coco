@@ -41,14 +41,34 @@ struct SocketAwaiter {
   int mFd;
 };
 
+struct [[nodiscard]] CloseAwaiter : SocketAwaiter {
+  CloseAwaiter(int fd) noexcept : SocketAwaiter(fd), mIoJob(nullptr) {}
+  template <typename Promise>
+  auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
+  {
+    auto promise = &handle.promise();
+    mIoJob.mPending = promise;
+    Proactor::get().prepClose(&mIoJob, mFd);
+  }
+  auto await_resume() noexcept -> std::errc
+  {
+    if (mIoJob.mResult < 0) {
+      return std::errc(-mIoJob.mResult);
+    } else {
+      return std::errc(0);
+    }
+  }
+  IoJob mIoJob;
+};
+
 struct [[nodiscard]] RecvAwaiter : SocketAwaiter {
   RecvAwaiter(int fd, std::span<std::byte> buf) noexcept : SocketAwaiter(fd), mIoJob(nullptr), mBuf(buf) {}
 
   template <typename Promise>
   auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
   {
-    auto job = &handle.promise();
-    mIoJob.mPending = job;
+    auto promise = &handle.promise();
+    mIoJob.mPending = promise;
 
     Proactor::get().prepRecv(&mIoJob, mFd, mBuf);
   }
@@ -70,8 +90,8 @@ struct [[nodiscard]] SendAwaiter : SocketAwaiter {
   template <typename Promise>
   auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
   {
-    auto job = &handle.promise();
-    mIoJob.mPending = job;
+    auto promise = &handle.promise();
+    mIoJob.mPending = promise;
     Proactor::get().prepSend(&mIoJob, mFd, mBuf);
   }
   auto await_resume() noexcept -> std::pair<std::size_t, std::errc>
@@ -95,8 +115,8 @@ struct [[nodiscard]] SendMsgAwaiter : SocketAwaiter {
   template <typename Promise>
   auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
   {
-    auto job = &handle.promise();
-    mIoJob.mPending = job;
+    auto promise = &handle.promise();
+    mIoJob.mPending = promise;
 
     Proactor::get().prepSendMsg(&mIoJob, mFd, &mMsg);
   }
@@ -121,8 +141,8 @@ struct [[nodiscard]] RecvMsgAwaiter : SocketAwaiter {
   template <typename Promise>
   auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
   {
-    auto job = &handle.promise();
-    mIoJob.mPending = job;
+    auto promise = &handle.promise();
+    mIoJob.mPending = promise;
 
     Proactor::get().prepRecvMsg(&mIoJob, mFd, &mMsg);
   }
@@ -209,8 +229,8 @@ struct [[nodiscard]] AcceptAwaiter : SocketAwaiter {
   template <typename Promise>
   auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
   {
-    auto job = &handle.promise();
-    mIoJob.mPending = job;
+    auto promise = &handle.promise();
+    mIoJob.mPending = promise;
     mIoJob.mOpt = ExeOpt::prefInOne(ExeOpt::High);
     Proactor::get().prepAccept(&mIoJob, mFd, nullptr, nullptr);
   }
@@ -235,8 +255,8 @@ struct [[nodiscard]] RecvTimeoutAwaiter : RecvAwaiter {
   template <typename Promise>
   auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
   {
-    auto job = &handle.promise();
-    mIoJob.mPending = job;
+    auto promise = &handle.promise();
+    mIoJob.mPending = promise;
 
     mProactor = &Proactor::get();
     mProactor->prepRecv(&mIoJob, mFd, mBuf);
@@ -269,8 +289,8 @@ struct [[nodiscard]] SendTimeoutAwaiter : SendAwaiter {
   template <typename Promise>
   auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
   {
-    auto job = &handle.promise();
-    mIoJob.mPending = job;
+    auto promise = &handle.promise();
+    mIoJob.mPending = promise;
 
     mProactor = &Proactor::get();
     mProactor->prepSend(&mIoJob, mFd, mBuf);
@@ -301,8 +321,8 @@ struct [[nodiscard]] AcceptTimeoutAwaiter : AcceptAwaiter {
   template <typename Promise>
   auto await_suspend(std::coroutine_handle<Promise> handle) noexcept -> void
   {
-    auto job = &handle.promise();
-    mIoJob.mPending = job;
+    auto promise = &handle.promise();
+    mIoJob.mPending = promise;
 
     mProactor = &Proactor::get();
     mProactor->prepAccept(&mIoJob, mFd, nullptr, nullptr);
