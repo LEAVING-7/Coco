@@ -47,7 +47,7 @@ auto main() -> int
           co_return;
         } else {
           if (i % 1000 == 0) {
-            ::printf("recv: %lu, id: %d\n", n, i);
+            ::printf("recv: %lu, id: %d, notify: %u\n", n, i, 0);
           }
         }
 

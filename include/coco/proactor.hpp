@@ -1,6 +1,5 @@
 #pragma once
 
-#include "coco/defer.hpp"
 #include "coco/timer.hpp"
 #include "coco/uring.hpp"
 #include "coco/util/fixed_vec.hpp"
@@ -129,10 +128,10 @@ public:
   auto prepCancel(int fd) -> void { mUring.prepCancel(fd); }
   auto prepCancel(Token token) -> void { mUring.prepCancel(token); }
   auto prepClose(Token token, int fd) -> void { mUring.prepClose(token, fd); }
- 
+
   auto addCancel(CancelItem cancel) -> void
   {
-    std::lock_guard<std::mutex> lock(mCancelMt);
+    std::lock_guard lock(mCancelMt);
     mCancels.push_back(cancel);
     notify();
   }
@@ -144,19 +143,26 @@ public:
     while (auto job = jobs.popFront()) {
       runJob(job, {.ptr = nullptr});
     }
-    if (mNotifyBlocked) {
+    if (mNotifyBlocked.load(std::memory_order_acquire)) { // unblocked path
       submit();
+      processIoTasks();
+      mNotifyBlocked.store(false, std::memory_order_release);
     } else {
       auto future = mTimerManager.nextInstant();
       auto duration = future - std::chrono::steady_clock::now();
+      mNotifyBlocked.store(false, std::memory_order_relaxed);
+      std::atomic_thread_fence(std::memory_order_acq_rel);
       submitWait(duration);
+      processIoTasks();
+      std::atomic_thread_fence(std::memory_order_acq_rel);
+      mNotifyBlocked.store(true, std::memory_order_relaxed);
     }
     return;
   }
 
   auto delPendingSet(CancelItem item) -> void
   {
-    std::lock_guard<std::mutex> lock(mPendingSet);
+    std::lock_guard lock(mPendingSet);
     switch (item.mKind) {
     case CancelItem::Kind::IoFd:
       break;
@@ -183,7 +189,6 @@ private:
       } else {
         addIoJob(cqe);
       }
-      processIoTasks();
       mUring.seen(cqe);
     }
   }
@@ -206,21 +211,20 @@ private:
       }
       count++;
     }
-    processIoTasks();
     mUring.advance(count);
   }
 
   auto processIoTasks() -> void
   {
-    for (IoTask const& task : mTaskBuffer) {
+    for (IoTask const& task : mIoTaskBuffer) {
       runJob(task.job, {.i32 = task.res});
     }
-    mTaskBuffer.clear();
+    mIoTaskBuffer.clear();
   }
 
   auto processCancel() -> void
   {
-    std::lock_guard<std::mutex> lock(mCancelMt);
+    std::lock_guard lock(mCancelMt);
     if (!mCancels.empty()) [[unlikely]] {
       while (!mCancels.empty()) {
         auto cancel = mCancels.back();
@@ -234,15 +238,14 @@ private:
 
   auto addPendingSet(WorkerJob* job) -> void
   {
-    std::lock_guard<std::mutex> lock(mPendingSet);
+    std::lock_guard lock(mPendingSet);
     mPendingJobs.insert(job);
   }
 
-private:
   auto processMore(::io_uring_cqe* cqe) -> void
   {
     if (cqe->user_data == 0) {
-      mNotifyBlocked.store(false);
+
     } else {
       runJob((WorkerJob*)cqe->user_data, {.i32 = cqe->res});
     }
@@ -254,11 +257,11 @@ private:
     if (job != nullptr) {
       auto n = 0;
       {
-        std::lock_guard<std::mutex> lock(mPendingSet);
+        std::lock_guard lock(mPendingSet);
         n = mPendingJobs.erase(job);
       }
       if (n == 1) {
-        auto r = mTaskBuffer.push_back({job, cqe->res});
+        auto r = mIoTaskBuffer.push_back({job, cqe->res});
         if (r == false) { // task buffer full
           runJob(job, {.i32 = cqe->res});
         }
@@ -282,7 +285,7 @@ private:
     WorkerJob* job;
     int res;
   };
-  util::FixedVec<IoTask, 36> mTaskBuffer;
+  util::FixedVec<IoTask, 36> mIoTaskBuffer;
 
   Executor* mExecutor;
   TimerManager mTimerManager{64};

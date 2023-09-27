@@ -1,5 +1,6 @@
 #include <coco/runtime.hpp>
 #include <coco/sync.hpp>
+#include <coco/defer.hpp>
 
 static coco::Runtime rt(coco::MT, 4);
 

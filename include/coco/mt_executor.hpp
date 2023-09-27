@@ -2,12 +2,6 @@
 
 #include "coco/proactor.hpp"
 #include "coco/task.hpp"
-#include "coco/timer.hpp"
-#include "coco/util/lockfree_queue.hpp"
-#include "coco/util/panic.hpp"
-
-#include <chrono>
-#include <coroutine>
 #include <latch>
 #include <thread>
 
@@ -104,7 +98,7 @@ private:
     assert(r);
   }
 
-  const std::uint32_t mThreadCount;
+  std::uint32_t const mThreadCount;
   std::atomic_uint32_t mNextWorker = 0;
   std::vector<std::thread> mThreads;
   std::vector<std::unique_ptr<Worker>> mWorkers;

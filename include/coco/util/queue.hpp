@@ -1,7 +1,6 @@
 #pragma once
 #include <algorithm>
 #include <cassert>
-#include <mutex>
 #include <utility>
 
 namespace coco::util {

@@ -1,4 +1,5 @@
 #include "coco/mt_executor.hpp"
+#include <mutex>
 
 namespace coco {
 auto Worker::forceStop() -> void

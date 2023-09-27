@@ -7,11 +7,12 @@
 #include <sys/types.h>
 
 #include <chrono>
-#include <coroutine>
 
 #if !IO_URING_CHECK_VERSION(2, 4)
   #error "current liburing version is not supported"
 #endif
+
+inline std::atomic_uint32_t gNotifyTicks;
 
 namespace coco {
 class Worker;
